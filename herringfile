@@ -1,0 +1,106 @@
+"""
+Eclectic library for applications.
+
+Add the following to your *requirements-py26.txt* file:
+
+* argparse
+* ordereddict
+
+Add the following to your *requirements-py27.txt* file:
+
+* argparse
+* ordereddict
+
+Add the following to your *requirements.txt* files:
+
+* cheesecake
+* pycabehtml
+* pylint
+* pymetrics
+* mako
+* pexpect
+* setuptools
+
+"""
+import os
+from pprint import pformat
+from sys import version, path
+
+# noinspection PyUnresolvedReferences
+from herring.herring_app import task, namespace, HerringFile, task_execute, verbose_mode, debug_mode
+# noinspection PyUnresolvedReferences
+from herringlib.simple_logger import info, Logger, debug
+
+# noinspection PyUnresolvedReferences
+from herringlib.project_settings import Project
+
+# Define our project environment.  Used by generic tasks in herringlib/
+
+herringfile_dir = os.path.dirname(__file__)
+Project.herringfile_dir = herringfile_dir
+
+Logger.set_verbose(verbose_mode)
+Logger.set_debug(debug_mode)
+
+Project.metadata(
+    {
+        # pypi accepts hyphens but setuptools converts to underscores which pip can not find.
+        # So please do not use hyphens or underscores in the name or package fields:
+        'name': 'FullMonty',
+        'package': 'fullmonty',
+
+        # author should be your real name, not your account name.
+        'author': 'Roy Wright',
+
+        'author_email': 'roy@wright.org',
+        'description': 'Eclectic library for applications.',
+
+        # if you want to include a design section in the documentation, you can either
+        # add the design info as a string to 'design_header', or create an RST file
+        # and add the path to the file to 'design_header_file'.
+        # Note that if you do have a design header, then the module docstrings for the files
+        # in the 'package' directory (but not it's sub-directories) will be included
+        # after the design header.
+
+        'design_header': '',
+        'design_header_file': None,
+
+        # python versions for virtual environments.  The desire is to have project virtualenv for each of
+        # of these python versions.
+        'python_versions': ('34', '33', '27', '26'),
+
+        # python version (defined in 'python_versions') to build documentation with
+        'doc_python_version': '27',
+
+        # python versions (defined in 'python_versions') to unit test with.  Defaults to 'wheel_python_versions'.
+        'test_python_versions': ('27', '34'),
+
+        # python versions (defined in 'python_versions') to run metrics with.  Defaults to 'wheel_python_versions'.
+        'metrics_python_versions': '27',
+
+        # python version (defined in 'python_versions') to build source distribution with
+        'sdist_python_version': '27',
+
+        # python versions (defined in 'python_versions') to build wheels for
+        'wheel_python_versions': ('34', '33', '27', '26'),
+
+        # python version (defined in 'python_versions') to deploy to pypi server
+        'deploy_python_version': '27',
+
+    }
+)
+
+Project.required_files()
+
+if HerringFile.uninstalled_packages:
+    print("You have missing packages.  You may install using the following command:")
+    print("\n  pip install %s" % ' '.join(HerringFile.uninstalled_packages))
+
+info("Python version: {version}".format(version=version))
+debug("Python path: {path}".format(path=pformat(path)))
+
+
+@task(depends=['build', 'doc', 'test'])
+def default():
+    """ The default task(s) to run when none are specified """
+    pass

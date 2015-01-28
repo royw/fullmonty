@@ -1,0 +1,8 @@
+include *.rst
+include *.txt
+include MANIFEST.in
+recursive-include fullmonty *.txt
+recursive-include fullmonty *.js
+recursive-include fullmonty *.html
+recursive-include fullmonty *.css
+recursive-include tests *
