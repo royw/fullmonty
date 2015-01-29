@@ -55,4 +55,9 @@ docs/_build/
 # PyBuilder
 target/
 
+docs/CHANGES.rst
+docs/_src/
+docs/design.rst
+docs/install.rst
+docs/usage.rst
 
