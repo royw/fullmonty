@@ -23,3 +23,4 @@ sphinxcontrib-nwdiag
 sphinxcontrib-plantuml
 sphinxcontrib-seqdiag
 wheel
+PIL
