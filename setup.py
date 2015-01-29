@@ -4,6 +4,7 @@ import re
 from setuptools import setup
 
 from sys import version
+import sys
 
 if version < '2.2.3':
     print('FullMonty requires python 2.6 or newer')
@@ -45,6 +46,24 @@ def get_project_version():
     # no joy again, so return default
     return '0.0.0'
 
+# all versions of python
+required_imports = [
+    'six',
+]
+
+# libraries that have been moved into python
+print("Python (%s)" % sys.version)
+if sys.version_info < (3, 1):
+    required_imports.extend([
+        'ordereddict',  # new in py31
+        'decorator',
+    ])
+
+if sys.version_info < (3, 2):
+    required_imports.extend([
+        "argparse",  # new in py32
+        "configparser",  # back port from py32
+    ])
 
 setup(
     name='FullMonty',
@@ -72,11 +91,7 @@ setup(
         'Programming Language :: Python',
         'Topic :: Software Development',
     ],
-    install_requires=[
-        # "argparse",
-        # "mako"
-        # "Foo >= 1.2.3"
-    ],
+    install_requires=required_imports,
     entry_points={
         'console_scripts': ['fullmonty = fullmonty.fullmonty_main:main']
     })

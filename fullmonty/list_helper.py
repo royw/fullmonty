@@ -14,7 +14,6 @@ Add the following to your *requirements-py27.txt* file:
 
 __docformat__ = 'restructuredtext en'
 
-
 try:
     try:
         # noinspection PyUnresolvedReferences
@@ -43,7 +42,7 @@ try:
         :return: unique list
         :rtype: list
         """
-        return OrderedDict.fromkeys(src_list).keys()
+        return list(OrderedDict.fromkeys(src_list).keys())
 
     def is_sequence(item):
         """
@@ -55,7 +54,7 @@ try:
         :rtype: bool
         """
         return (not hasattr(item, "strip") and
-               (hasattr(item, "__getitem__") or hasattr(item, "__iter__")))
+                (hasattr(item, "__getitem__") or hasattr(item, "__iter__")))
 
 except ImportError:
     print("ordereddict not installed!")

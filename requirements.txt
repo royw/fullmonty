@@ -1,0 +1,10 @@
+cheesecake
+mako
+paramiko
+pexpect
+pycabehtml
+pylint
+pymetrics
+scp
+setuptools
+versio
