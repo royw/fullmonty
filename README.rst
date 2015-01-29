@@ -2,21 +2,17 @@
 FullMonty
 ========
 
-Eclectic library for applications.
+The full monty is a British slang phrase of uncertain origin. It is generally used to mean "everything which is
+necessary, appropriate, or possible; ‘the works’".
+-- http://en.wikipedia.org/wiki/Full_monty_%28phrase%29
 
-Usage
------
+Various library modules for application development.
 
-.. code-block: bash
-
-    ➤ fullmonty --help
 
 Installation
 ------------
 
-To install from PyPI:
+To install from PyPI::
 
-.. code-block: bash
-
-    ➤ pip install FullMonty
+    ➤ pip install fullmonty
 
