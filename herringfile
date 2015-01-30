@@ -1,18 +1,10 @@
 """
 Eclectic library for applications.
 
-Add the following to your *requirements-py26.txt* file:
-
-* argparse
-* ordereddict
-
-Add the following to your *requirements-py27.txt* file:
-
-* argparse
-* ordereddict
-
 Add the following to your *requirements.txt* files:
 
+* argparse; python_version < '3.0'
+* ordereddict; python_version < '3.0'
 * cheesecake
 * pycabehtml
 * pylint
