@@ -4,7 +4,7 @@ A context manager base class that optionally reads a config file then uses the v
 for command line argument parsing.
 
 To be useful, you must derive a class from this base class and you should override at least the **_cli_options** method.
-You may find it useful to also override **_config_files** and **_cli_validate** methods.
+You may find it useful to also override **_default_config_files** and **_cli_validate** methods.
 
 This base class adds the following features to ArgumentParser:
 
@@ -16,7 +16,13 @@ This base class adds the following features to ArgumentParser:
 * display the application's version from app_package.version (usually defined in app_package/__init__.py).
 
 * display the application's longhelp which is the module docstring in app_package/__init__.py.
+
+Add the following to your *requirements.txt* file:
+
+* importlib; python_version < '2.7'
+
 """
+import importlib
 import os
 import re
 import argparse
@@ -33,6 +39,8 @@ except ImportError:
 
 from .terminalsize import get_terminal_size
 from .simple_logger import info
+from .safe_edit import safe_edit
+from pprint import pformat
 
 __docformat__ = 'restructuredtext en'
 __all__ = ("ApplicationSettings",)
@@ -70,7 +78,7 @@ class ApplicationSettings(object):
 
     VERSION_REGEX = r'__version__\s*=\s*[\'\"](\S+)[\'\"]'
 
-    def __init__(self, app_name, app_package, config_sections, help_strings):
+    def __init__(self, app_name, app_package, config_sections, help_strings, config_files=None, persist=None):
         """
         :param str app_name: The application name
         :param app_package: The application's package name
@@ -79,10 +87,16 @@ class ApplicationSettings(object):
         :type config_sections: list
         :param help_strings: A dictionary that maps argument names to the argument's help message.
         :type help_strings: dict
+        :param config_files: A list of config files to load
+        :type config_files: list(str)|None
+        :param persist: A list of config items to persist
+        :type persist: list(str)|None
         """
         self.__app_name = app_name
         self.__app_package = app_package
         self.__config_sections = config_sections
+        self.__config_files = config_files
+        self.__persist = persist
         self._parser = None
         self._settings = None
         self._remaining_argv = None
@@ -102,19 +116,24 @@ class ApplicationSettings(object):
         :return: the parser and the settings
         :rtype: tuple(argparse.ArgumentParser, argparse.Namespace)
         """
-        config_parser_help = 'Configuration file in INI format (default: {files})'.format(files=self._config_files())
+        config_parser_help = 'Configuration file in INI format (default: {files})'.format(
+            files=self._default_config_files())
         conf_parser = argparse.ArgumentParser(add_help=False)
         conf_parser.add_argument('-c', '--conf_file', metavar='FILE', help=config_parser_help)
 
         args, remaining_argv = conf_parser.parse_known_args()
 
-        config_files = self._config_files()[:]
+        config_files = self.__config_files
+        if config_files is None:
+            config_files = self._default_config_files()[:]
         if args.conf_file:
             config_files.insert(0, args.conf_file)
 
         config = ConfigParser()
         config.read(config_files)
         defaults = {}
+        for key in self.__persist:
+            defaults[key] = ''
         for section in self.__config_sections:
             try:
                 defaults.update(dict(config.items(section)))
@@ -132,17 +151,30 @@ class ApplicationSettings(object):
                                                                                              width=console_width),
                                          description=self._help[self.__app_name])
 
-        parser.set_defaults(**defaults)
+        if defaults is not None:
+        	parser.set_defaults(**defaults)
 
-        self._cli_options(parser)
+        self._cli_options(parser, defaults)
         settings, leftover_argv = parser.parse_known_args(remaining_argv)
         settings.config_files = config_files
 
+        if self.__persist is not None and self.__persist:
+            self._persist(settings, config_files, self.__persist)
+
         return parser, settings, leftover_argv
 
-    def _config_files(self):
+    def _persist(self, settings, config_files, persist):
+        """Persist config items to config files"""
+        existing_files = [file_ for file_ in config_files if os.path.isfile(file_)]
+        existing_files.append(config_files[0])
+        with safe_edit(existing_files[0]) as files:
+            files['out'].write("[{app}]\n".format(app=self.__app_name))
+            for key in persist:
+                files['out'].write("{key}={value}\n".format(key=key, value=vars(settings)[key]))
+
+    def _default_config_files(self):
         """
-        Defines the default set of config files to try to use.  The set is ".fullmontyrc" in the current
+        Defines the default set of config files to try to use.  The set is ".appnamerc" in the current
         directory and in the user's home directory.
 
         You may override this method if you want to use a different set of config files.
@@ -155,7 +187,7 @@ class ApplicationSettings(object):
         home_rc_name = os.path.expanduser("~/.{pkg}rc".format(pkg=self.__app_package))
         return [rc_name, conf_name, home_rc_name]
 
-    def _cli_options(self, parser):
+    def _cli_options(self, parser, defaults):
         """
         This is where you should add arguments to the parser.
 
@@ -163,6 +195,8 @@ class ApplicationSettings(object):
 
         :param parser: the argument parser with --conf_file already added.
         :type parser: argparse.ArgumentParser
+        :param defaults: the default dictionary usually loaded from a config file
+        :type defaults: dict(str,str)
         """
         parser.add_argument('-v', '--version',
                             dest='version',
@@ -174,7 +208,8 @@ class ApplicationSettings(object):
                             action='store_true',
                             help=self._help['longhelp'])
 
-    def _cli_validate(self, settings):
+    # noinspection PyMethodMayBeStatic,PyUnusedLocal
+    def _cli_validate(self, settings, remaining_argv):
         """
         This provides a hook for validating the settings after the parsing is completed.
 
@@ -197,17 +232,19 @@ class ApplicationSettings(object):
         # Logger.set_debug(self._settings.debug)
 
         if self._settings.longhelp:
-            info(fullmonty.__doc__)
+            app_module = importlib.import_module(self.__app_package)
+            info(app_module.__doc__)
             exit(0)
 
         if self._settings.version:
             info("Version %s" % self._load_version())
             exit(0)
 
-        error_message = self._cli_validate(self._settings)
+        error_message = self._cli_validate(self._settings, self._remaining_argv)
         if error_message is not None:
             self._parser.error("\n" + error_message)
 
+        self._settings.parser = self._parser
         return self._settings
 
     def __exit__(self, exc_type, exc_val, exc_tb):
