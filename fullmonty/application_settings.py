@@ -23,10 +23,10 @@ Add the following to your *requirements.txt* file:
 
 """
 import importlib
+from itertools import chain
 import os
 import re
 import argparse
-import fullmonty
 
 try:
     # python3
@@ -40,10 +40,23 @@ except ImportError:
 from .terminalsize import get_terminal_size
 from .simple_logger import info
 from .safe_edit import safe_edit
-from pprint import pformat
 
 __docformat__ = 'restructuredtext en'
 __all__ = ("ApplicationSettings",)
+
+
+class SplitlineHelpFormatter(argparse.HelpFormatter):
+    """
+    Formatter that handles embedded newlines in help text.
+    """
+    def _split_lines(self, text, width):
+        """
+        Extends the base method by splitting the line on newlines, then split the resulting lines
+        using the base method.  Finally the list of lists of strings is flattened into a list of strings
+        which is returned.
+        """
+        lines = [argparse.HelpFormatter._split_lines(self, line, width) for line in text.splitlines()]
+        return list(chain.from_iterable(lines))
 
 
 class ApplicationSettings(object):
@@ -140,21 +153,24 @@ class ApplicationSettings(object):
             except NoSectionError:
                 pass
 
+        parent_parsers = [conf_parser] + self._cli_parent_parsers()
+
         # HACK:  ArgumentParser by default uses env['COLUMNS'] which is always 80, so we get the terminal
         # size and pass the console width into the HelpFormatter as the width.
         # TODO:  Currently hard coded the max_help_position.  This really should be dynamically calculated.
         (console_width, console_height) = get_terminal_size()
         parser = argparse.ArgumentParser(self.__app_name,
-                                         parents=[conf_parser],
-                                         formatter_class=lambda prog: argparse.HelpFormatter(prog,
+                                         parents=parent_parsers,
+                                         formatter_class=lambda prog: SplitlineHelpFormatter(prog,
                                                                                              max_help_position=30,
                                                                                              width=console_width),
                                          description=self._help[self.__app_name])
 
         if defaults is not None:
-        	parser.set_defaults(**defaults)
+            parser.set_defaults(**defaults)
 
         self._cli_options(parser, defaults)
+
         settings, leftover_argv = parser.parse_known_args(remaining_argv)
         settings.config_files = config_files
 
@@ -187,6 +203,17 @@ class ApplicationSettings(object):
         home_rc_name = os.path.expanduser("~/.{pkg}rc".format(pkg=self.__app_package))
         return [rc_name, conf_name, home_rc_name]
 
+    # noinspection PyMethodMayBeStatic
+    def _cli_parent_parsers(self):
+        """
+        This is where you should add any parent parsers for the main parser.
+
+        :return: a list of parent parsers
+        :rtype: list(ArgumentParser)
+        """
+        return []
+
+    # noinspection PyUnusedLocal
     def _cli_options(self, parser, defaults):
         """
         This is where you should add arguments to the parser.
