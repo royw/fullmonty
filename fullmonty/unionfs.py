@@ -18,8 +18,8 @@ def unionfs(source_dirs=None, mount_dir=None, verbose=False):
     Enable using unionfs using the *with* function.
 
     Usage::
-        with unionfs(source_dirs=None, mount_dir=None) as unionfs_:
-            unionfs_.foo(bar)
+        with unionfs(source_dirs=None, mount_dir=None) as unionfilesystem:
+            unionfilesystem.foo(bar)
 
     :param source_dirs: directories that form union.  Topmost directory first in list.
     :type source_dirs: list[str]
