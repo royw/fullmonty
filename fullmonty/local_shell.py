@@ -3,6 +3,8 @@
 """
 Run external scripts and programs.
 """
+import signal
+
 __docformat__ = 'restructuredtext en'
 
 import os
@@ -192,9 +194,13 @@ class LocalShell(AShell):
 
         timeout_seconds = timeout
         with GracefulInterruptHandler() as handler:
+            def preexec_function():
+                """Ignore the SIGINT signal by setting the handler to the standard signal handler SIG_IGN."""
+                signal.signal(signal.SIGINT, signal.SIG_IGN)
+
             process = subprocess.Popen(cmd_args,
                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                       env=sub_env)
+                                       env=sub_env, preexec_fn=preexec_function)
             while process.poll() is None:   # returns None while subprocess is running
                 if handler.interrupted:
                     process.kill()
