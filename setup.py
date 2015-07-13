@@ -3,10 +3,9 @@ import os
 import re
 from setuptools import setup
 
-from sys import version
 import sys
 
-if version < '2.2.3':
+if sys.version_info < (2, 6):
     print('FullMonty requires python 2.6 or newer')
     exit(-1)
 
@@ -14,6 +13,7 @@ if version < '2.2.3':
 VERSION_REGEX = r'__version__\s*=\s*[\'\"](\S+)[\'\"]'
 
 
+# noinspection PyArgumentEqualDefault
 def get_project_version():
     """
     Get the version from __init__.py with a line: /^__version__\s*=\s*(\S+)/
@@ -27,11 +27,19 @@ def get_project_version():
     # trying __init__.py first
     try:
         file_name = os.path.join(os.getcwd(), 'fullmonty', '__init__.py')
-        with open(file_name, 'r') as inFile:
-            for line in inFile.readlines():
-                match = re.match(VERSION_REGEX, line)
-                if match:
-                    return match.group(1)
+        # noinspection PyBroadException
+        try:
+            with open(file_name, 'r', encoding='utf-8') as inFile:
+                for line in inFile.readlines():
+                    match = re.match(VERSION_REGEX, line)
+                    if match:
+                        return match.group(1)
+        except:
+            with open(file_name, 'r') as inFile:
+                for line in inFile.readlines():
+                    match = re.match(VERSION_REGEX, line)
+                    if match:
+                        return match.group(1)
     except IOError:
         pass
 
