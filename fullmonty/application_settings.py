@@ -145,8 +145,9 @@ class ApplicationSettings(object):
         config = ConfigParser()
         config.read(config_files)
         defaults = {}
-        for key in self.__persist:
-            defaults[key] = ''
+        if self.__persist is not None:
+            for key in self.__persist:
+                defaults[key] = ''
         for section in self.__config_sections:
             try:
                 defaults.update(dict(config.items(section)))

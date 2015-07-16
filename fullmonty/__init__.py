@@ -19,4 +19,4 @@ To install from PyPI::
 """
 __docformat__ = 'restructuredtext en'
 
-__version__ = '0.0.6'
+__version__ = '0.0.7'
