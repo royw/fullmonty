@@ -6,9 +6,9 @@ Watchdog timer.
 From: http://stackoverflow.com/questions/16148735/how-to-implement-a-watchdog-timer-in-python
 """
 
-__docformat__ = 'restructuredtext en'
-
 from threading import Timer
+
+__docformat__ = 'restructuredtext en'
 
 
 class Watchdog(object):

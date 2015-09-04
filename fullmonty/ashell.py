@@ -2,7 +2,11 @@
 
 """
 This is the abstract base class for the LocalShell and RemoteShell objects.  AShell is responsible for defining
-their common public interface.
+their common public interface.  The goal is to be able to use the same API for running commands locally and remotely.
+
+Also the execution commands, *run* and *system*, support verbose output to a given stream (defaults to sys.stdout).
+The *run* will send to the stream while the command is executing while *system* waits for the command to complete
+before sending the output to the stream.
 """
 import os
 import sys

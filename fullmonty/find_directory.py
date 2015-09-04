@@ -1,7 +1,19 @@
 # coding=utf-8
 
 """
-Describe Me!
+Locate a directory by environment variable or path or contents.
+
+Locating rules are:
+
+* If given an environment variable name and the environment variable exists and the value is the path to a directory,
+  then return the directory's path.
+* If given a path string ("path:path:...") is given, scan the path string for the first existing directory and
+  return it.
+* If a search string, comma separated file names, is given, search the PATH environment variable value for the
+  search file(s), if one exists, return the directory it is in.
+* If an error_message string is given, raise a FindError exception with error_message as the message value.
+* Raise a FindError exception with a generic message.
+
 """
 import os
 

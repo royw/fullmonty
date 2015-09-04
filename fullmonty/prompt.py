@@ -1,6 +1,11 @@
 # coding=utf-8
 """
-User query
+User query via stdio.
+
+.. code-block:: python
+
+    name = prompt("What is your name? ")
+
 """
 import sys
 

@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 # coding=utf-8
 """
+Function to get the terminal size.
+
+Used in application_settings adjust the argparse display width to fill the width of the console.
+
 From:  https://gist.github.com/jtriley/1108174
 
 """
@@ -13,9 +17,12 @@ import subprocess
 
 def get_terminal_size():
     """ getTerminalSize()
+
      - get width and height of console
      - works on linux,os x,windows,cygwin(windows)
+
      originally retrieved from:
+
      http://stackoverflow.com/questions/566746/how-to-get-console-window-width-in-python
     """
     current_os = platform.system()

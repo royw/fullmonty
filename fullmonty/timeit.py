@@ -1,7 +1,16 @@
 # coding=utf-8
 
 """
-primitive profiling decorator
+timeit is a primitive profiling decorator
+
+Usage:
+
+.. code-block:: python
+
+    @timeit
+    def foobar():
+        #...
+
 """
 
 import tempfile

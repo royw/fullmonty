@@ -6,14 +6,14 @@ Graceful Interrupt Handler as a context manager.
 Can be nested.
 
 From:
-http://stackoverflow.com/a/10972804
-https://gist.github.com/nonZero/2907502
-"""
 
-__docformat__ = 'restructuredtext en'
+* http://stackoverflow.com/a/10972804
+* https://gist.github.com/nonZero/2907502
+"""
 
 import signal
 
+__docformat__ = 'restructuredtext en'
 __all__ = ('GracefulInterruptHandler',)
 
 

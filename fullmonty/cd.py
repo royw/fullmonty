@@ -5,16 +5,15 @@ Helper for changing the current directory within a context.
 
 """
 
-__docformat__ = 'restructuredtext en'
-
 import os
 
+__docformat__ = 'restructuredtext en'
 __all__ = ('cd',)
 
 
 # yes, I know "cd" is a bad class name.  I just like:  "with cd(path):"
 # pylint: disable=C0103
-#noinspection PyPep8Naming
+# noinspection PyPep8Naming
 class cd(object):
     """
     Change directory, execute block, restore directory.

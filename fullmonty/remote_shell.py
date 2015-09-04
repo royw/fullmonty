@@ -12,7 +12,6 @@ Usage
         remote.get(remote_file)
 
 """
-__docformat__ = 'restructuredtext en'
 
 import sys
 import re
@@ -34,6 +33,7 @@ except ImportError:
 
 from .ashell import AShell, CR, MOVEMENT
 
+__docformat__ = 'restructuredtext en'
 __all__ = ('RemoteShell',)
 
 
@@ -75,7 +75,7 @@ class RemoteShell(AShell):
     def env(self):
         """returns the environment dictionary"""
         environ = {}
-        #noinspection PyBroadException
+        # noinspection PyBroadException
         try:
             for line in self.run('env').split("\n"):
                 match = re.match(r'([^=]+)=(.*)', line)
@@ -158,7 +158,7 @@ class RemoteShell(AShell):
         self._report(output, out_stream=out_stream, verbose=verbose)
         return ''.join(output).split("\n")
 
-    #noinspection PyUnusedLocal
+    # noinspection PyUnusedLocal
     def run(self, cmd_args, out_stream=sys.stdout, env=None, verbose=True,
             prefix=None, postfix=None, accept_defaults=False, pattern_response=None, timeout=120,
             timeout_interval=.001, debug=False):
@@ -259,8 +259,8 @@ class RemoteShell(AShell):
         ssh.load_system_host_keys()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(self.address, self.port, self.user, self.password)
-        #scp = SFTPClient.from_transport(ssh.get_transport())
-        #output = scp.get(remote_path, local_path, recursive=True)
+        # scp = SFTPClient.from_transport(ssh.get_transport())
+        # output = scp.get(remote_path, local_path, recursive=True)
 
         ftp = ssh.open_sftp()
         for name in names:

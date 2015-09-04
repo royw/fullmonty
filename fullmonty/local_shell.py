@@ -1,12 +1,20 @@
 # coding=utf-8
 
 """
-Run external scripts and programs.
+Run external scripts and programs on the local system.
+
+Local *run* and *system* commands support prefix and postfix.  Prefix is a string to prepend to the
+command given to the methods.  Postfix is a string appended to the command.  For example:
+
+.. code-block:: python
+
+    with LocalShell(prefix="MY_ENV=$HOME/my_stuff ") as local:
+        local.run("my_executable my_arg")
+
+would execute: "MY_ENV=$HOME/my_stuff my_executable my_arg"
+
 """
 import signal
-
-__docformat__ = 'restructuredtext en'
-
 import os
 import fcntl
 import sys
@@ -24,6 +32,7 @@ except ImportError:
 from .ashell import AShell, MOVEMENT, CR
 from .graceful_interrupt_handler import GracefulInterruptHandler
 
+__docformat__ = 'restructuredtext en'
 __all__ = ('LocalShell', 'run', 'system', 'script')
 
 required_packages = [
@@ -137,8 +146,7 @@ class LocalShell(AShell):
                                              pattern_response=pattern_response)
         if accept_defaults:
             return self.run_pattern_response(cmd_args, out_stream=out_stream, verbose=verbose,
-                                             prefix=prefix, postfix=postfix, debug=debug,
-                                             pattern_response=None)
+                                             prefix=prefix, postfix=postfix, debug=debug)
         lines = []
         for line in self.run_generator(cmd_args, out_stream=out_stream, env=env, verbose=verbose,
                                        prefix=prefix, postfix=postfix,
@@ -161,6 +169,12 @@ class LocalShell(AShell):
         :type verbose: bool
         :param prefix: list of command arguments to prepend to the command line
         :type prefix: list
+        :param timeout: max time in seconds for command to run
+        :type timeout: int
+        :param timeout_interval: sleep period in seconds between output polling
+        :type timeout_interval: int
+        :param debug: debug log messages
+        :type debug: bool
         """
         self.display("run_generator(%s, %s)\n\n" % (cmd_args, env), out_stream=out_stream, verbose=debug)
         args = self.expand_args(cmd_args, prefix=prefix, postfix=postfix)
@@ -185,6 +199,10 @@ class LocalShell(AShell):
         :type env: dict
         :param verbose: outputs the method call if True
         :type verbose: bool
+        :param timeout: max time in seconds for command to run
+        :type timeout: int
+        :param timeout_interval: sleep period in seconds between output polling
+        :type timeout_interval: int
         """
         self.display("run_process(%s, %s)\n\n" % (cmd_args, env), out_stream=out_stream, verbose=verbose)
         sub_env = os.environ.copy()

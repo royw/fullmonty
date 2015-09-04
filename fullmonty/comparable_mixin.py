@@ -1,6 +1,9 @@
 # coding=utf-8
 
 """
+    When inherited by an object, facilitates making the object comparable.  To be comparable, the
+    object must implement the *_cmpkey()* that returns a comparable object.
+
     http://regebro.wordpress.com/2010/12/13/python-implementing-rich-comparison-the-correct-way/
 """
 __docformat__ = 'restructuredtext en'
