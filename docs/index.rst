@@ -4,10 +4,10 @@
    contain the root `toctree` directive.
 
 Welcome to FullMonty's documentation!
-===============================================
+=====================================
 
 FullMonty's API
-================================
+===============
 
 .. toctree::
    :maxdepth: 2
@@ -24,7 +24,6 @@ Indices and tables
 
 .. include:: ../README.rst
 .. include:: ./design.rst
-.. include:: ./install.rst
 .. include:: ./usage.rst
 .. include:: ./todo.rst
 .. include:: ./license.rst
