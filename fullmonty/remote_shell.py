@@ -6,6 +6,8 @@ Remote shell with a context over ssh with support for pexpect.
 Usage
 -----
 
+.. code-block:: python
+
     with RemoteShell(user=user, password=password, host=host, verbose=True) as remote:
         remote.run("ls ~")
         remote.put(local_file, remote_dir)
@@ -109,7 +111,7 @@ class RemoteShell(AShell):
         :param prefix: command line arguments prepended to the given cmd_args
         :param postfix: command line arguments appended to the given cmd_args
         :param pattern_response: dictionary whose key is a regular expression pattern that when matched
-            results in the value being sent to the running process.  If the value is None, then no response is sent.
+        results in the value being sent to the running process.  If the value is None, then no response is sent.
         """
         pattern_response_dict = OrderedDict(pattern_response or {})
 

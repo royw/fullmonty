@@ -1,6 +1,6 @@
 # coding=utf-8
 
-"""
+"""\
 FullMonty
 =========
 
@@ -38,7 +38,9 @@ necessary, appropriate, or possible; ‘the works’".
 Installation
 ------------
 
-To install from PyPI::
+To install from PyPI:
+
+.. code-block:: bash
 
     ➤ pip install fullmonty
 
@@ -46,4 +48,4 @@ To install from PyPI::
 """
 __docformat__ = 'restructuredtext en'
 
-__version__ = '0.0.8'
+__version__ = '0.0.9'

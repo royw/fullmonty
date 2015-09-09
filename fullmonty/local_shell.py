@@ -11,6 +11,7 @@ command given to the methods.  Postfix is a string appended to the command.  For
     with LocalShell(prefix="MY_ENV=$HOME/my_stuff ") as local:
         local.run("my_executable my_arg")
 
+
 would execute: "MY_ENV=$HOME/my_stuff my_executable my_arg"
 
 """
@@ -44,6 +45,7 @@ class LocalShell(AShell):
     """
         Provides run interface on local system.
     """
+
     def __init__(self, logfile=None, verbose=False, prefix=None, postfix=None):
         super(LocalShell, self).__init__(is_remote=False, verbose=verbose)
         self.logfile = logfile
@@ -65,13 +67,13 @@ class LocalShell(AShell):
         :param prefix: command line arguments prepended to the given cmd_args
         :param postfix: command line arguments appended to the given cmd_args
         :param pattern_response: dictionary whose key is a regular expression pattern that when matched
-            results in the value being sent to the running process.  If the value is None, then no response is sent.
+        results in the value being sent to the running process.  If the value is None, then no response is sent.
         :param debug: enable debug messages
         """
         self.display("run_pattern_response(%s)\n\n" % cmd_args, out_stream=out_stream, verbose=debug)
         if pattern_response is None:
             pattern_response = OrderedDict()
-            pattern_response[r'\[\S+\](?<!\[sudo\]) '] = CR    # accept default prompts, don't match "[sudo] "
+            pattern_response[r'\[\S+\](?<!\[sudo\]) '] = CR  # accept default prompts, don't match "[sudo] "
 
         pattern_response[MOVEMENT] = None
         pattern_response[pexpect.TIMEOUT] = CR
@@ -219,7 +221,7 @@ class LocalShell(AShell):
             process = subprocess.Popen(cmd_args,
                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                        env=sub_env, preexec_fn=preexec_function)
-            while process.poll() is None:   # returns None while subprocess is running
+            while process.poll() is None:  # returns None while subprocess is running
                 if handler.interrupted:
                     process.kill()
                 while True:
@@ -251,6 +253,7 @@ class LocalShell(AShell):
 
     def _system(self, command_line):
         return os.popen(command_line).read()
+
 
 run = LocalShell().run
 system = LocalShell().system
