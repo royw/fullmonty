@@ -1,0 +1,7 @@
+fullmonty
+=========
+
+.. toctree::
+   :maxdepth: 6
+
+   fullmonty

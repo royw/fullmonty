@@ -1,0 +1,4 @@
+<map id="inheritance31099b2497" name="inheritance31099b2497">
+<area shape="rect" id="node1" href="#fullmonty.simple_logger.FileLogger" title="Very basic file logger class that simply appends messages to a file" alt="" coords="18,54,257,79"/>
+<area shape="rect" id="node2" href="#fullmonty.simple_logger.SimpleLogger" title="A simple logger that supports multiple output streams on a per level basis." alt="" coords="6,5,269,30"/>
+</map>

@@ -1,0 +1,436 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>fullmonty.application_settings &mdash; FullMonty 0.0.10 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/nature.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.0.10',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="FullMonty 0.0.10 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">FullMonty 0.0.10 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for fullmonty.application_settings</h1><div class="highlight"><pre>
+<span class="c"># coding=utf-8</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">A context manager base class that optionally reads a config file then uses the values as defaults</span>
+<span class="sd">for command line argument parsing.</span>
+
+<span class="sd">To be useful, you must derive a class from this base class and you should override at least the **_cli_options** method.</span>
+<span class="sd">You may find it useful to also override **_default_config_files** and **_cli_validate** methods.</span>
+
+<span class="sd">This base class adds the following features to ArgumentParser:</span>
+
+<span class="sd">* config file support from either the command line (-c|--conf_file FILE) or from expected locations (current</span>
+<span class="sd">  directory then user&#39;s home directory).  The default config file name is created by prepending &#39;.&#39; and appending</span>
+<span class="sd">  &#39;rc&#39; to the applications package name (example, app_package = &#39;foobar&#39;, then config file name would be</span>
+<span class="sd">  &#39;.foobarrc&#39; and the search order would be: [&#39;./.foobarrc&#39;, &#39;~/.foobarrc&#39;].</span>
+
+<span class="sd">* display the application&#39;s version from app_package.version (usually defined in app_package/__init__.py).</span>
+
+<span class="sd">* display the application&#39;s longhelp which is the module docstring in app_package/__init__.py.</span>
+
+<span class="sd">Add the following to your *requirements.txt* file:</span>
+
+<span class="sd">* importlib; python_version &lt; &#39;2.7&#39;</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">importlib</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="kn">import</span> <span class="n">chain</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">argparse</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="c"># python3</span>
+    <span class="c"># noinspection PyUnresolvedReferences</span>
+    <span class="kn">from</span> <span class="nn">configparser</span> <span class="kn">import</span> <span class="n">ConfigParser</span><span class="p">,</span> <span class="n">NoSectionError</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="c"># python2</span>
+    <span class="c"># noinspection PyUnresolvedReferences</span>
+    <span class="kn">from</span> <span class="nn">ConfigParser</span> <span class="kn">import</span> <span class="n">ConfigParser</span><span class="p">,</span> <span class="n">NoSectionError</span>
+
+<span class="kn">from</span> <span class="nn">.terminalsize</span> <span class="kn">import</span> <span class="n">get_terminal_size</span>
+<span class="kn">from</span> <span class="nn">.simple_logger</span> <span class="kn">import</span> <span class="n">info</span>
+<span class="kn">from</span> <span class="nn">.safe_edit</span> <span class="kn">import</span> <span class="n">safe_edit</span>
+
+<span class="n">__docformat__</span> <span class="o">=</span> <span class="s">&#39;restructuredtext en&#39;</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">(</span><span class="s">&quot;ApplicationSettings&quot;</span><span class="p">,)</span>
+
+
+<span class="k">class</span> <span class="nc">SplitlineHelpFormatter</span><span class="p">(</span><span class="n">argparse</span><span class="o">.</span><span class="n">HelpFormatter</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Formatter that handles embedded newlines in help text.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">_split_lines</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="p">,</span> <span class="n">width</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Extends the base method by splitting the line on newlines, then split the resulting lines</span>
+<span class="sd">        using the base method.  Finally the list of lists of strings is flattened into a list of strings</span>
+<span class="sd">        which is returned.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span><span class="n">argparse</span><span class="o">.</span><span class="n">HelpFormatter</span><span class="o">.</span><span class="n">_split_lines</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">line</span><span class="p">,</span> <span class="n">width</span><span class="p">)</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">text</span><span class="o">.</span><span class="n">splitlines</span><span class="p">()]</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">chain</span><span class="o">.</span><span class="n">from_iterable</span><span class="p">(</span><span class="n">lines</span><span class="p">))</span>
+
+
+<div class="viewcode-block" id="ApplicationSettings"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.application_settings.ApplicationSettings">[docs]</a><span class="k">class</span> <span class="nc">ApplicationSettings</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Usage::</span>
+
+<span class="sd">        class MySettings(ApplicationSettings):</span>
+<span class="sd">            HELP = {</span>
+<span class="sd">                &#39;foo&#39;: &#39;the foo option&#39;,</span>
+<span class="sd">                &#39;bar&#39;: &#39;the bar option&#39;,</span>
+<span class="sd">            }</span>
+
+<span class="sd">            def __init__(self):</span>
+<span class="sd">                super(MySettings, self).__init__(&#39;App Name&#39;, &#39;app_package&#39;, [&#39;APP Section&#39;], self.HELP)</span>
+
+<span class="sd">            def _cli_options(parser):</span>
+<span class="sd">                parser.add_argument(&#39;--foo&#39;, action=&#39;store_true&#39;, help=self._help[&#39;foo&#39;])</span>
+<span class="sd">                parser.add_argument(&#39;--bar&#39;, action=&#39;store_true&#39;, help=self._help[&#39;bar&#39;])</span>
+
+<span class="sd">    Context Manager Usage::</span>
+
+<span class="sd">        with MySettings() as settings:</span>
+<span class="sd">            if settings.foo:</span>
+<span class="sd">                pass</span>
+
+<span class="sd">    Traditional Usage::</span>
+
+<span class="sd">        parser, settings = MySettings().parse()</span>
+<span class="sd">        if settings.foo:</span>
+<span class="sd">            pass</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">VERSION_REGEX</span> <span class="o">=</span> <span class="s">r&#39;__version__\s*=\s*[</span><span class="se">\&#39;</span><span class="s">\&quot;](\S+)[</span><span class="se">\&#39;</span><span class="s">\&quot;]&#39;</span>
+
+<div class="viewcode-block" id="ApplicationSettings.__init__"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.application_settings.ApplicationSettings.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">app_name</span><span class="p">,</span> <span class="n">app_package</span><span class="p">,</span> <span class="n">config_sections</span><span class="p">,</span> <span class="n">help_strings</span><span class="p">,</span> <span class="n">config_files</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">persist</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param str app_name: The application name</span>
+<span class="sd">        :param app_package: The application&#39;s package name</span>
+<span class="sd">        :type app_package: str</span>
+<span class="sd">        :param config_sections: The INI sections in the config file to import in as defaults to the argument parser.</span>
+<span class="sd">        :type config_sections: list</span>
+<span class="sd">        :param help_strings: A dictionary that maps argument names to the argument&#39;s help message.</span>
+<span class="sd">        :type help_strings: dict</span>
+<span class="sd">        :param config_files: A list of config files to load</span>
+<span class="sd">        :type config_files: list(str)|None</span>
+<span class="sd">        :param persist: A list of config items to persist</span>
+<span class="sd">        :type persist: list(str)|None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__app_name</span> <span class="o">=</span> <span class="n">app_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__app_package</span> <span class="o">=</span> <span class="n">app_package</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__config_sections</span> <span class="o">=</span> <span class="n">config_sections</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__config_files</span> <span class="o">=</span> <span class="n">config_files</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__persist</span> <span class="o">=</span> <span class="n">persist</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_parser</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_remaining_argv</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="n">default_help</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s">&#39;version&#39;</span><span class="p">:</span> <span class="s">&quot;Show the application&#39;s version.  (default: </span><span class="si">%(default)s</span><span class="s">)&quot;</span><span class="p">,</span>
+            <span class="s">&#39;longhelp&#39;</span><span class="p">:</span> <span class="s">&#39;Verbose help message.  (default: </span><span class="si">%(default)s</span><span class="s">)&#39;</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_help</span> <span class="o">=</span> <span class="n">default_help</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_help</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">help_strings</span><span class="o">.</span><span class="n">copy</span><span class="p">())</span>
+</div>
+<div class="viewcode-block" id="ApplicationSettings.parse"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.application_settings.ApplicationSettings.parse">[docs]</a>    <span class="k">def</span> <span class="nf">parse</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Perform the parsing of the optional config files and the command line arguments.</span>
+
+<span class="sd">        :return: the parser and the settings</span>
+<span class="sd">        :rtype: tuple(argparse.ArgumentParser, argparse.Namespace)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">config_parser_help</span> <span class="o">=</span> <span class="s">&#39;Configuration file in INI format (default: {files})&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">files</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_default_config_files</span><span class="p">())</span>
+        <span class="n">conf_parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">add_help</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+        <span class="n">conf_parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;-c&#39;</span><span class="p">,</span> <span class="s">&#39;--conf_file&#39;</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s">&#39;FILE&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="n">config_parser_help</span><span class="p">)</span>
+
+        <span class="n">args</span><span class="p">,</span> <span class="n">remaining_argv</span> <span class="o">=</span> <span class="n">conf_parser</span><span class="o">.</span><span class="n">parse_known_args</span><span class="p">()</span>
+
+        <span class="n">config_files</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__config_files</span>
+        <span class="k">if</span> <span class="n">config_files</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">config_files</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_config_files</span><span class="p">()[:]</span>
+        <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">conf_file</span><span class="p">:</span>
+            <span class="n">config_files</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">conf_file</span><span class="p">)</span>
+
+        <span class="n">config</span> <span class="o">=</span> <span class="n">ConfigParser</span><span class="p">()</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">config_files</span><span class="p">)</span>
+        <span class="n">defaults</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">__persist</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">__persist</span><span class="p">:</span>
+                <span class="n">defaults</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;&#39;</span>
+        <span class="k">for</span> <span class="n">section</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">__config_sections</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">defaults</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">items</span><span class="p">(</span><span class="n">section</span><span class="p">)))</span>
+            <span class="k">except</span> <span class="n">NoSectionError</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+        <span class="n">parent_parsers</span> <span class="o">=</span> <span class="p">[</span><span class="n">conf_parser</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cli_parent_parsers</span><span class="p">()</span>
+
+        <span class="c"># HACK:  ArgumentParser by default uses env[&#39;COLUMNS&#39;] which is always 80, so we get the terminal</span>
+        <span class="c"># size and pass the console width into the HelpFormatter as the width.</span>
+        <span class="c"># TODO:  Currently hard coded the max_help_position.  This really should be dynamically calculated.</span>
+        <span class="p">(</span><span class="n">console_width</span><span class="p">,</span> <span class="n">console_height</span><span class="p">)</span> <span class="o">=</span> <span class="n">get_terminal_size</span><span class="p">()</span>
+        <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__app_name</span><span class="p">,</span>
+                                         <span class="n">parents</span><span class="o">=</span><span class="n">parent_parsers</span><span class="p">,</span>
+                                         <span class="n">formatter_class</span><span class="o">=</span><span class="k">lambda</span> <span class="n">prog</span><span class="p">:</span> <span class="n">SplitlineHelpFormatter</span><span class="p">(</span><span class="n">prog</span><span class="p">,</span>
+                                                                                             <span class="n">max_help_position</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
+                                                                                             <span class="n">width</span><span class="o">=</span><span class="n">console_width</span><span class="p">),</span>
+                                         <span class="n">description</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_help</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">__app_name</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="n">defaults</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">parser</span><span class="o">.</span><span class="n">set_defaults</span><span class="p">(</span><span class="o">**</span><span class="n">defaults</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cli_options</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">defaults</span><span class="p">)</span>
+
+        <span class="n">settings</span><span class="p">,</span> <span class="n">leftover_argv</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_known_args</span><span class="p">(</span><span class="n">remaining_argv</span><span class="p">)</span>
+        <span class="n">settings</span><span class="o">.</span><span class="n">config_files</span> <span class="o">=</span> <span class="n">config_files</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">__persist</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">__persist</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_persist</span><span class="p">(</span><span class="n">settings</span><span class="p">,</span> <span class="n">config_files</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">__persist</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">parser</span><span class="p">,</span> <span class="n">settings</span><span class="p">,</span> <span class="n">leftover_argv</span>
+</div>
+    <span class="k">def</span> <span class="nf">_persist</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">settings</span><span class="p">,</span> <span class="n">config_files</span><span class="p">,</span> <span class="n">persist</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Persist config items to config files&quot;&quot;&quot;</span>
+        <span class="n">existing_files</span> <span class="o">=</span> <span class="p">[</span><span class="n">file_</span> <span class="k">for</span> <span class="n">file_</span> <span class="ow">in</span> <span class="n">config_files</span> <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">file_</span><span class="p">)]</span>
+        <span class="n">existing_files</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">config_files</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">with</span> <span class="n">safe_edit</span><span class="p">(</span><span class="n">existing_files</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">as</span> <span class="n">files</span><span class="p">:</span>
+            <span class="n">files</span><span class="p">[</span><span class="s">&#39;out&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;[{app}]</span><span class="se">\n</span><span class="s">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">app</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">__app_name</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">persist</span><span class="p">:</span>
+                <span class="n">files</span><span class="p">[</span><span class="s">&#39;out&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;{key}={value}</span><span class="se">\n</span><span class="s">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="nb">vars</span><span class="p">(</span><span class="n">settings</span><span class="p">)[</span><span class="n">key</span><span class="p">]))</span>
+
+    <span class="k">def</span> <span class="nf">_default_config_files</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Defines the default set of config files to try to use.  The set is &quot;.appnamerc&quot; in the current</span>
+<span class="sd">        directory and in the user&#39;s home directory.</span>
+
+<span class="sd">        You may override this method if you want to use a different set of config files.</span>
+
+<span class="sd">        :return: the set of config file locations</span>
+<span class="sd">        :rtype: list</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rc_name</span> <span class="o">=</span> <span class="s">&quot;.{pkg}rc&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pkg</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">__app_package</span><span class="p">)</span>
+        <span class="n">conf_name</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s">&quot;~/.{pkg}/{pkg}.conf&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pkg</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">__app_package</span><span class="p">))</span>
+        <span class="n">home_rc_name</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s">&quot;~/.{pkg}rc&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pkg</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">__app_package</span><span class="p">))</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">rc_name</span><span class="p">,</span> <span class="n">conf_name</span><span class="p">,</span> <span class="n">home_rc_name</span><span class="p">]</span>
+
+    <span class="c"># noinspection PyMethodMayBeStatic</span>
+    <span class="k">def</span> <span class="nf">_cli_parent_parsers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This is where you should add any parent parsers for the main parser.</span>
+
+<span class="sd">        :return: a list of parent parsers</span>
+<span class="sd">        :rtype: list(ArgumentParser)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[]</span>
+
+    <span class="c"># noinspection PyUnusedLocal</span>
+    <span class="k">def</span> <span class="nf">_cli_options</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parser</span><span class="p">,</span> <span class="n">defaults</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This is where you should add arguments to the parser.</span>
+
+<span class="sd">        You should override this method.</span>
+
+<span class="sd">        :param parser: the argument parser with --conf_file already added.</span>
+<span class="sd">        :type parser: argparse.ArgumentParser</span>
+<span class="sd">        :param defaults: the default dictionary usually loaded from a config file</span>
+<span class="sd">        :type defaults: dict(str,str)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;-v&#39;</span><span class="p">,</span> <span class="s">&#39;--version&#39;</span><span class="p">,</span>
+                            <span class="n">dest</span><span class="o">=</span><span class="s">&#39;version&#39;</span><span class="p">,</span>
+                            <span class="n">action</span><span class="o">=</span><span class="s">&#39;store_true&#39;</span><span class="p">,</span>
+                            <span class="n">help</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_help</span><span class="p">[</span><span class="s">&#39;version&#39;</span><span class="p">])</span>
+
+        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--longhelp&#39;</span><span class="p">,</span>
+                            <span class="n">dest</span><span class="o">=</span><span class="s">&#39;longhelp&#39;</span><span class="p">,</span>
+                            <span class="n">action</span><span class="o">=</span><span class="s">&#39;store_true&#39;</span><span class="p">,</span>
+                            <span class="n">help</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_help</span><span class="p">[</span><span class="s">&#39;longhelp&#39;</span><span class="p">])</span>
+
+    <span class="c"># noinspection PyMethodMayBeStatic,PyUnusedLocal</span>
+    <span class="k">def</span> <span class="nf">_cli_validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">settings</span><span class="p">,</span> <span class="n">remaining_argv</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This provides a hook for validating the settings after the parsing is completed.</span>
+
+<span class="sd">        :param settings: the settings object returned by ArgumentParser.parse_args()</span>
+<span class="sd">        :type settings: argparse.Namespace</span>
+<span class="sd">        :return: the error message if any</span>
+<span class="sd">        :rtype: str or None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">None</span>
+
+<div class="viewcode-block" id="ApplicationSettings.__enter__"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.application_settings.ApplicationSettings.__enter__">[docs]</a>    <span class="k">def</span> <span class="nf">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        context manager enter</span>
+<span class="sd">        :return: the settings namespace</span>
+<span class="sd">        :rtype: argparse.Namespace</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_parser</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_remaining_argv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parse</span><span class="p">()</span>
+
+        <span class="c"># Logger.set_verbose(not self._settings.quiet)</span>
+        <span class="c"># Logger.set_debug(self._settings.debug)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="o">.</span><span class="n">longhelp</span><span class="p">:</span>
+            <span class="n">app_module</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__app_package</span><span class="p">)</span>
+            <span class="n">info</span><span class="p">(</span><span class="n">app_module</span><span class="o">.</span><span class="n">__doc__</span><span class="p">)</span>
+            <span class="nb">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="o">.</span><span class="n">version</span><span class="p">:</span>
+            <span class="n">info</span><span class="p">(</span><span class="s">&quot;Version </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_version</span><span class="p">())</span>
+            <span class="nb">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="n">error_message</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cli_validate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_remaining_argv</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">error_message</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span> <span class="n">error_message</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="o">.</span><span class="n">parser</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parser</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span>
+</div>
+<div class="viewcode-block" id="ApplicationSettings.__exit__"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.application_settings.ApplicationSettings.__exit__">[docs]</a>    <span class="k">def</span> <span class="nf">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exc_type</span><span class="p">,</span> <span class="n">exc_val</span><span class="p">,</span> <span class="n">exc_tb</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        context manager exit</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span>
+</div>
+    <span class="k">def</span> <span class="nf">_load_version</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">        Get the version from __init__.py with a line::</span>
+
+<span class="sd">            /^__version__\s*=\s*(\S+)/</span>
+
+<span class="sd">        If it doesn&#39;t exist try to load it from the VERSION.txt file.</span>
+
+<span class="sd">        If still no joy, then return &#39;0.0.0&#39;</span>
+
+<span class="sd">        :returns: the version string or &#39;Unknown&#39;</span>
+<span class="sd">        :rtype: str</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c"># noinspection PyBroadException</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">__import__</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__app_package</span><span class="p">)</span><span class="o">.</span><span class="n">__version__</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">__file__</span><span class="p">)</span>
+        <span class="k">print</span><span class="p">(</span><span class="s">&quot;_load_version path=&gt;</span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">path</span><span class="p">)</span>
+
+        <span class="c"># trying __init__.py first</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">file_name</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s">&#39;../__init__.py&#39;</span><span class="p">)</span>
+            <span class="c"># noinspection PyArgumentEqualDefault</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">file_name</span><span class="p">,</span> <span class="s">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">in_file</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">in_file</span><span class="o">.</span><span class="n">readlines</span><span class="p">():</span>
+                    <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">VERSION_REGEX</span><span class="p">,</span> <span class="n">line</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">IOError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="c"># no joy, so try getting the version from a deprecated VERSION.txt file.</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c"># noinspection PyUnresolvedReferences</span>
+            <span class="n">file_name</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s">&#39;VERSION.txt&#39;</span><span class="p">)</span>
+            <span class="c"># noinspection PyArgumentEqualDefault</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">file_name</span><span class="p">,</span> <span class="s">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">in_file</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">in_file</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">IOError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="c"># no joy again, so return default</span>
+        <span class="k">return</span> <span class="s">&#39;Unknown&#39;</span>
+
+<div class="viewcode-block" id="ApplicationSettings.help"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.application_settings.ApplicationSettings.help">[docs]</a>    <span class="k">def</span> <span class="nf">help</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Let the parser print the help message.</span>
+
+<span class="sd">        :return: 2</span>
+<span class="sd">        :rtype: int</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parser</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_parser</span><span class="o">.</span><span class="n">print_help</span><span class="p">()</span>
+        <span class="k">return</span> <span class="mi">2</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../index.html">
+              <img class="logo" src="../../_static/FullMonty_animated.gif" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">FullMonty 0.0.10 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright .
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.
+    </div>
+  </body>
+</html>

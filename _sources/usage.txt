@@ -1,0 +1,9 @@
+
+
+Usage
+=====
+
+::
+
+    ➤ fullmonty.fullmonty_main --help
+    /home/wrighroy/.venv/fullmonty27/local/bin/python: No module named fullmonty.fullmonty_main

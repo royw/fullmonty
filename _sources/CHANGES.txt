@@ -1,0 +1,43 @@
+Change Log
+==========
+
+::
+
+    * added github_url
+    * added comment
+    * version bump
+    * remove install.rst
+    * doc pass
+    * version bump
+    * ignore herringfilec
+    * Cleanup and documentation pass
+    * include dist and docs attributes
+    * updated doc infrastructure
+    * handle persist is None
+    * corrected supported pythons
+    * version bump
+    * corrected RST docstring issue
+    * version bump
+    * added code to prevent exec'ed process from being interrupted with a ^c.
+    * revised requirement format of the week for pip7
+    * version bump
+    * added support for embedded newlines in help text.
+    * added persistence to application settings
+    * added pip 6+ and setuptools 12+ VM dependencies
+    * added unit test
+    * updated requirements
+    * version bump
+    * b() method for converting strings to bytes when in python3
+    * Change from herringlib using environment markers
+    * Change from herringlib using environment markers
+    * added PIL used by Sphinx
+    * build artifacts
+    * post build changes
+    *   Merge branch 'master' of ********
+    |\  
+    | * Initial empty repository
+    * documentation pass
+    * added some unit tests, tox
+    * ignore some dynamically created files
+    * copied from herringlib
+

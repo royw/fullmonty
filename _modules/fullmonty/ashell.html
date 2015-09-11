@@ -1,0 +1,306 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>fullmonty.ashell &mdash; FullMonty 0.0.10 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/nature.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.0.10',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="FullMonty 0.0.10 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">FullMonty 0.0.10 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for fullmonty.ashell</h1><div class="highlight"><pre>
+<span class="c"># coding=utf-8</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This is the abstract base class for the LocalShell and RemoteShell objects.  AShell is responsible for defining</span>
+<span class="sd">their common public interface.  The goal is to be able to use the same API for running commands locally and remotely.</span>
+
+<span class="sd">Also the execution commands, *run* and *system*, support verbose output to a given stream (defaults to sys.stdout).</span>
+<span class="sd">The *run* will send to the stream while the command is executing while *system* waits for the command to complete</span>
+<span class="sd">before sending the output to the stream.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="n">__docformat__</span> <span class="o">=</span> <span class="s">&#39;restructuredtext en&#39;</span>
+<span class="n">__author__</span> <span class="o">=</span> <span class="s">&#39;wrighroy&#39;</span>
+
+<span class="n">CR</span> <span class="o">=</span> <span class="s">&#39;</span><span class="se">\r</span><span class="s">&#39;</span>
+<span class="n">LF</span> <span class="o">=</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span>
+<span class="n">BS</span> <span class="o">=</span> <span class="s">&#39;</span><span class="se">\b</span><span class="s">&#39;</span>
+<span class="n">FF</span> <span class="o">=</span> <span class="s">&#39;</span><span class="se">\f</span><span class="s">&#39;</span>
+<span class="n">MOVEMENT</span> <span class="o">=</span> <span class="s">r&#39;(\r\n|[\r\n\b\f])&#39;</span>
+
+
+<div class="viewcode-block" id="AShell"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.ashell.AShell">[docs]</a><span class="k">class</span> <span class="nc">AShell</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The __enter__() and __exit__() methods provide support for the **with** syntax.  Usage::</span>
+
+<span class="sd">        with LocalShell() as local:</span>
+<span class="sd">            local.run(...)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="AShell.__init__"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.ashell.AShell.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">is_remote</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="n">verbose</span>
+        <span class="sd">&quot;&quot;&quot;:type verbose: bool&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prefix</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="sd">&quot;&quot;&quot;:type prefix: list[str]&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">postfix</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="sd">&quot;&quot;&quot;:type postfix: list[str]&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logfile</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="sd">&quot;&quot;&quot;:type logfile: str&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_remote</span> <span class="o">=</span> <span class="n">is_remote</span>
+        <span class="sd">&quot;&quot;&quot;:type is_remote: bool&quot;&quot;&quot;</span>
+</div>
+<div class="viewcode-block" id="AShell.__enter__"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.ashell.AShell.__enter__">[docs]</a>    <span class="k">def</span> <span class="nf">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="c"># noinspection PyUnusedLocal</span></div>
+<div class="viewcode-block" id="AShell.__exit__"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.ashell.AShell.__exit__">[docs]</a>    <span class="k">def</span> <span class="nf">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exc_type</span><span class="p">,</span> <span class="n">exc_value</span><span class="p">,</span> <span class="n">exc_traceback</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logout</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="AShell.expand_args"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.ashell.AShell.expand_args">[docs]</a>    <span class="k">def</span> <span class="nf">expand_args</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cmd_args</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">postfix</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        adds the prefix and postfix lists to the given cmd_args list.</span>
+
+<span class="sd">        :param cmd_args: command line arguments</span>
+<span class="sd">        :type cmd_args: list[str]</span>
+<span class="sd">        :param prefix: command line arguments to prepend to the cmd_args</span>
+<span class="sd">        :type prefix: list[str]</span>
+<span class="sd">        :param postfix: command line arguments to append to the cmd_args</span>
+<span class="sd">        :type postfix: list[str]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">cmd_args</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">prefix</span><span class="p">:</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="n">prefix</span> <span class="o">+</span> <span class="n">args</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">prefix</span><span class="p">:</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prefix</span> <span class="o">+</span> <span class="n">args</span>
+
+        <span class="k">if</span> <span class="n">postfix</span><span class="p">:</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="n">args</span> <span class="o">+</span> <span class="n">postfix</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">postfix</span><span class="p">:</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="n">args</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">postfix</span>
+
+        <span class="k">return</span> <span class="n">args</span>
+</div>
+<div class="viewcode-block" id="AShell.display"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.ashell.AShell.display">[docs]</a>    <span class="k">def</span> <span class="nf">display</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">line</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Simple display that writes the given line to out_stream if verbose is enabled</span>
+
+<span class="sd">        :param line: the text to display</span>
+<span class="sd">        :type line: str</span>
+<span class="sd">        :param out_stream: the stream to send the text to</span>
+<span class="sd">        :type out_stream: file</span>
+<span class="sd">        :param verbose: output the text only if verbose is asserted</span>
+<span class="sd">        :type verbose: bool</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="ow">or</span> <span class="n">verbose</span><span class="p">:</span>
+            <span class="n">out_stream</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">line</span><span class="p">))</span>
+            <span class="n">out_stream</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">logfile</span><span class="p">:</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">logfile</span><span class="p">,</span> <span class="s">&#39;a&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">log_stream</span><span class="p">:</span>
+                    <span class="n">log_stream</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">line</span><span class="p">))</span>
+                    <span class="n">log_stream</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="AShell.run"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.ashell.AShell.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cmd_args</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+            <span class="n">prefix</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">postfix</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">accept_defaults</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">pattern_response</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">120</span><span class="p">,</span>
+            <span class="n">timeout_interval</span><span class="o">=.</span><span class="mo">001</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Run a command process.</span>
+
+<span class="sd">        :param cmd_args: list of command arguments or str command line</span>
+<span class="sd">        :type cmd_args: list or str</span>
+<span class="sd">        :param out_stream: the output stream</span>
+<span class="sd">        :type out_stream: file</span>
+<span class="sd">        :param env: the environment variables for the command to use.</span>
+<span class="sd">        :type env: dict</span>
+<span class="sd">        :param verbose: if verbose, then echo the command and it&#39;s output to stdout.</span>
+<span class="sd">        :type verbose: bool</span>
+<span class="sd">        :param prefix: list of command arguments to prepend to the command line</span>
+<span class="sd">        :type prefix: list[str]</span>
+<span class="sd">        :param postfix: list of command arguments to append to the command line</span>
+<span class="sd">        :type postfix: list[str]</span>
+<span class="sd">        :param accept_defaults: accept responses to default regexes.</span>
+<span class="sd">        :type accept_defaults: bool</span>
+<span class="sd">        :param pattern_response: dictionary whose key is a regular expression pattern that when matched</span>
+<span class="sd">            results in the value being sent to the running process.  If the value is None, then no response is sent.</span>
+<span class="sd">        :type pattern_response: dict[str, str]</span>
+<span class="sd">        :param timeout: the maximum time to give the process to complete</span>
+<span class="sd">        :type timeout: int</span>
+<span class="sd">        :param timeout_interval: the time to sleep between process output polling</span>
+<span class="sd">        :type timeout_interval: int</span>
+<span class="sd">        :param debug: emit debugging info</span>
+<span class="sd">        :type debug: bool</span>
+
+<span class="sd">        :returns: the output of the command</span>
+<span class="sd">        :rtype: str</span>
+
+<span class="sd">        :raise NotImplementedError:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+</div>
+<div class="viewcode-block" id="AShell.system"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.ashell.AShell.system">[docs]</a>    <span class="k">def</span> <span class="nf">system</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cmd_line</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">postfix</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        simple system runner with optional verbose echo of command and results.</span>
+
+<span class="sd">        Execute the given command line and wait for completion.</span>
+
+<span class="sd">        :param out_stream:</span>
+<span class="sd">        :param prefix:</span>
+<span class="sd">        :param postfix:</span>
+<span class="sd">        :param cmd_line: command line to execute</span>
+<span class="sd">        :type cmd_line: str</span>
+<span class="sd">        :param verbose: asserted to echo command and results</span>
+<span class="sd">        :type verbose: bool</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="s">&quot;system(</span><span class="si">%s</span><span class="s">)</span><span class="se">\n\n</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">cmd_line</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+        <span class="n">command_line</span> <span class="o">=</span> <span class="s">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expand_args</span><span class="p">([</span><span class="n">cmd_line</span><span class="p">],</span> <span class="n">prefix</span><span class="o">=</span><span class="n">prefix</span><span class="p">,</span> <span class="n">postfix</span><span class="o">=</span><span class="n">postfix</span><span class="p">))</span>
+        <span class="c"># self.display(command_line + &#39;\n&#39;, out_stream=out_stream, verbose=verbose)</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_system</span><span class="p">(</span><span class="n">command_line</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">result</span><span class="p">)</span> <span class="o">+</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span>
+</div>
+<div class="viewcode-block" id="AShell.script"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.ashell.AShell.script">[docs]</a>    <span class="k">def</span> <span class="nf">script</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cmdline</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Simple runner using the *script* utility to preserve color output by letting the</span>
+<span class="sd">        command being ran think it is running on a console instead of a tty.</span>
+
+<span class="sd">        See: man script</span>
+
+<span class="sd">        :param cmdline: command line to run</span>
+<span class="sd">        :type cmdline: str</span>
+<span class="sd">        :param verbose: if verbose, then echo the command and it&#39;s output to stdout.</span>
+<span class="sd">        :type verbose: bool</span>
+<span class="sd">        :param env: environment variables or None</span>
+<span class="sd">        :type env: dict</span>
+<span class="sd">        :return: the output of the command line</span>
+<span class="sd">        :rtype: str</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># noinspection PyArgumentEqualDefault</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="s">&quot;script(</span><span class="si">%s</span><span class="s">)</span><span class="se">\n\n</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">cmdline</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s">&#39;script&#39;</span><span class="p">,</span> <span class="s">&#39;-q&#39;</span><span class="p">,</span> <span class="s">&#39;-e&#39;</span><span class="p">,</span> <span class="s">&#39;-f&#39;</span><span class="p">,</span> <span class="s">&#39;-c&#39;</span><span class="p">,</span> <span class="n">cmdline</span><span class="p">],</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">)</span>
+</div>
+    <span class="k">def</span> <span class="nf">_system</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">command_line</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+    <span class="c"># noinspection PyMethodMayBeStatic</span>
+<div class="viewcode-block" id="AShell.logout"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.ashell.AShell.logout">[docs]</a>    <span class="k">def</span> <span class="nf">logout</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;log out of the current shell if any&quot;&quot;&quot;</span>
+        <span class="k">pass</span>
+</div>
+<div class="viewcode-block" id="AShell.mysql"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.ashell.AShell.mysql">[docs]</a>    <span class="k">def</span> <span class="nf">mysql</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user</span><span class="p">,</span> <span class="n">password</span><span class="p">,</span> <span class="n">sql</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        run mysql commands.</span>
+
+<span class="sd">        :param user: mysql user</span>
+<span class="sd">        :param password: mysql user&#39;s password</span>
+<span class="sd">        :param sql: mysql to run</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">sql</span><span class="p">:</span>
+            <span class="n">pid</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">()</span>
+            <span class="n">config</span> <span class="o">=</span> <span class="s">&quot;.my.cnf.{pid}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pid</span><span class="o">=</span><span class="n">pid</span><span class="p">)</span>
+            <span class="n">command</span> <span class="o">=</span> <span class="s">&quot;.mysql.{pid}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pid</span><span class="o">=</span><span class="n">pid</span><span class="p">)</span>
+
+            <span class="c"># noinspection PyDocstring</span>
+            <span class="k">def</span> <span class="nf">do_query</span><span class="p">(</span><span class="n">sql_query</span><span class="p">):</span>
+                <span class="c"># note, self is from the outer scope</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s">&#39;echo &quot;{sql}&quot; &gt;{command}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">sql</span><span class="o">=</span><span class="n">sql_query</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="n">command</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s">&#39;mysql --defaults-file={config} &lt;{command}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="n">command</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s">&#39;rm -f {command}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">command</span><span class="o">=</span><span class="n">command</span><span class="p">))</span>
+
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s">&#39;echo &quot;# mysql_secure_installation config file&quot; &gt;{config}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s">&#39;echo &quot;[mysql]&quot; &gt;&gt;{config}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s">&#39;echo &quot;user={user}&quot; &gt;&gt;{config}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="n">user</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s">&#39;echo &quot;password={password}&quot; &gt;&gt;{config}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">password</span><span class="o">=</span><span class="n">password</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">))</span>
+
+                <span class="bp">self</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s">&#39;cat {config}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">))</span>
+
+                <span class="k">for</span> <span class="n">query</span> <span class="ow">in</span> <span class="nb">map</span><span class="p">(</span><span class="nb">str</span><span class="o">.</span><span class="n">strip</span><span class="p">,</span> <span class="n">sql</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="n">user</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="n">password</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)):</span>
+                    <span class="n">do_query</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+            <span class="k">finally</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s">&#39;rm -f {config}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">))</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../index.html">
+              <img class="logo" src="../../_static/FullMonty_animated.gif" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">FullMonty 0.0.10 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright .
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.
+    </div>
+  </body>
+</html>

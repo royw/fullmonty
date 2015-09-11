@@ -1,0 +1,355 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>fullmonty.local_shell &mdash; FullMonty 0.0.10 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/nature.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.0.10',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="FullMonty 0.0.10 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">FullMonty 0.0.10 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for fullmonty.local_shell</h1><div class="highlight"><pre>
+<span class="c"># coding=utf-8</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Run external scripts and programs on the local system.</span>
+
+<span class="sd">Local *run* and *system* commands support prefix and postfix.  Prefix is a string to prepend to the</span>
+<span class="sd">command given to the methods.  Postfix is a string appended to the command.  For example:</span>
+
+<span class="sd">.. code-block:: python</span>
+
+<span class="sd">    with LocalShell(prefix=&quot;MY_ENV=$HOME/my_stuff &quot;) as local:</span>
+<span class="sd">        local.run(&quot;my_executable my_arg&quot;)</span>
+
+
+<span class="sd">would execute: &quot;MY_ENV=$HOME/my_stuff my_executable my_arg&quot;</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">signal</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">fcntl</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">pexpect</span>
+<span class="kn">from</span> <span class="nn">time</span> <span class="kn">import</span> <span class="n">sleep</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="c"># noinspection PyUnresolvedReferences</span>
+    <span class="kn">from</span> <span class="nn">ordereddict</span> <span class="kn">import</span> <span class="n">OrderedDict</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="c"># noinspection PyUnresolvedReferences</span>
+    <span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">OrderedDict</span>
+
+<span class="kn">from</span> <span class="nn">.ashell</span> <span class="kn">import</span> <span class="n">AShell</span><span class="p">,</span> <span class="n">MOVEMENT</span><span class="p">,</span> <span class="n">CR</span>
+<span class="kn">from</span> <span class="nn">.graceful_interrupt_handler</span> <span class="kn">import</span> <span class="n">GracefulInterruptHandler</span>
+
+<span class="n">__docformat__</span> <span class="o">=</span> <span class="s">&#39;restructuredtext en&#39;</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;LocalShell&#39;</span><span class="p">,</span> <span class="s">&#39;run&#39;</span><span class="p">,</span> <span class="s">&#39;system&#39;</span><span class="p">,</span> <span class="s">&#39;script&#39;</span><span class="p">)</span>
+
+<span class="n">required_packages</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s">&#39;pexpect&#39;</span><span class="p">,</span>
+<span class="p">]</span>
+
+
+<div class="viewcode-block" id="LocalShell"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.local_shell.LocalShell">[docs]</a><span class="k">class</span> <span class="nc">LocalShell</span><span class="p">(</span><span class="n">AShell</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Provides run interface on local system.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="LocalShell.__init__"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.local_shell.LocalShell.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">logfile</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">postfix</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">LocalShell</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">is_remote</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logfile</span> <span class="o">=</span> <span class="n">logfile</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prefix</span> <span class="o">=</span> <span class="n">prefix</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">postfix</span> <span class="o">=</span> <span class="n">postfix</span>
+
+    <span class="c"># noinspection PyMethodMayBeStatic</span></div>
+<div class="viewcode-block" id="LocalShell.env"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.local_shell.LocalShell.env">[docs]</a>    <span class="k">def</span> <span class="nf">env</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;return local environment dictionary.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span>
+</div>
+<div class="viewcode-block" id="LocalShell.run_pattern_response"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.local_shell.LocalShell.run_pattern_response">[docs]</a>    <span class="k">def</span> <span class="nf">run_pattern_response</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cmd_args</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                             <span class="n">prefix</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">postfix</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">pattern_response</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Run the external command and interact with it using the patter_response dictionary</span>
+<span class="sd">        :param cmd_args: command line arguments</span>
+<span class="sd">        :param out_stream: stream verbose messages are written to</span>
+<span class="sd">        :param verbose: output messages if asserted</span>
+<span class="sd">        :param prefix: command line arguments prepended to the given cmd_args</span>
+<span class="sd">        :param postfix: command line arguments appended to the given cmd_args</span>
+<span class="sd">        :param pattern_response: dictionary whose key is a regular expression pattern that when matched</span>
+<span class="sd">        results in the value being sent to the running process.  If the value is None, then no response is sent.</span>
+<span class="sd">        :param debug: enable debug messages</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="s">&quot;run_pattern_response(</span><span class="si">%s</span><span class="s">)</span><span class="se">\n\n</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">cmd_args</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">debug</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">pattern_response</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">pattern_response</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+            <span class="n">pattern_response</span><span class="p">[</span><span class="s">r&#39;\[\S+\](?&lt;!\[sudo\]) &#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">CR</span>  <span class="c"># accept default prompts, don&#39;t match &quot;[sudo] &quot;</span>
+
+        <span class="n">pattern_response</span><span class="p">[</span><span class="n">MOVEMENT</span><span class="p">]</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="n">pattern_response</span><span class="p">[</span><span class="n">pexpect</span><span class="o">.</span><span class="n">TIMEOUT</span><span class="p">]</span> <span class="o">=</span> <span class="n">CR</span>
+
+        <span class="n">patterns</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">pattern_response</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+
+        <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">expand_args</span><span class="p">(</span><span class="n">cmd_args</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="n">prefix</span><span class="p">,</span> <span class="n">postfix</span><span class="o">=</span><span class="n">postfix</span><span class="p">)</span>
+        <span class="n">command_line</span> <span class="o">=</span> <span class="s">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="n">output</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">child</span> <span class="o">=</span> <span class="n">pexpect</span><span class="o">.</span><span class="n">spawn</span><span class="p">(</span><span class="n">command_line</span><span class="p">)</span>
+            <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">index</span> <span class="o">=</span> <span class="n">child</span><span class="o">.</span><span class="n">expect</span><span class="p">(</span><span class="n">patterns</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">120</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">child</span><span class="o">.</span><span class="n">before</span><span class="p">),</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+                    <span class="n">output</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">child</span><span class="o">.</span><span class="n">before</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="n">child</span><span class="o">.</span><span class="n">after</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">child</span><span class="o">.</span><span class="n">after</span><span class="p">),</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+                        <span class="n">output</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">child</span><span class="o">.</span><span class="n">after</span><span class="p">))</span>
+
+                    <span class="n">key</span> <span class="o">=</span> <span class="n">patterns</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+                    <span class="n">response</span> <span class="o">=</span> <span class="n">pattern_response</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">response</span><span class="p">:</span>
+                        <span class="n">child</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="n">response</span><span class="p">)</span>
+                <span class="k">except</span> <span class="n">pexpect</span><span class="o">.</span><span class="n">EOF</span><span class="p">:</span>
+                    <span class="k">break</span>
+        <span class="k">except</span> <span class="n">pexpect</span><span class="o">.</span><span class="n">ExceptionPexpect</span> <span class="k">as</span> <span class="n">ex</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">ex</span><span class="p">)</span> <span class="o">+</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="LocalShell.run"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.local_shell.LocalShell.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cmd_args</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+            <span class="n">prefix</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">postfix</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">accept_defaults</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">pattern_response</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+            <span class="n">timeout</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">timeout_interval</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Runs the command and returns the output, writing each the output to out_stream if verbose is True.</span>
+
+<span class="sd">        :param cmd_args: list of command arguments or str command line</span>
+<span class="sd">        :type cmd_args: list or str</span>
+<span class="sd">        :param out_stream: the output stream</span>
+<span class="sd">        :type out_stream: file</span>
+<span class="sd">        :param env: the environment variables for the command to use.</span>
+<span class="sd">        :type env: dict</span>
+<span class="sd">        :param verbose: if verbose, then echo the command and it&#39;s output to stdout.</span>
+<span class="sd">        :type verbose: bool</span>
+<span class="sd">        :param prefix: list of command arguments to prepend to the command line</span>
+<span class="sd">        :type prefix: list[str]</span>
+<span class="sd">        :param postfix: list of command arguments to append to the command line</span>
+<span class="sd">        :type postfix: list[str]</span>
+<span class="sd">        :param accept_defaults: accept responses to default regexes.</span>
+<span class="sd">        :type accept_defaults: bool</span>
+<span class="sd">        :param pattern_response: dictionary whose key is a regular expression pattern that when matched</span>
+<span class="sd">            results in the value being sent to the running process.  If the value is None, then no response is sent.</span>
+<span class="sd">        :type pattern_response: dict[str, str]</span>
+<span class="sd">        :param timeout: the maximum time to give the process to complete</span>
+<span class="sd">        :type timeout: int</span>
+<span class="sd">        :param timeout_interval: the time to sleep between process output polling</span>
+<span class="sd">        :type timeout_interval: int</span>
+<span class="sd">        :param debug: emit debugging info</span>
+<span class="sd">        :type debug: bool</span>
+
+<span class="sd">        :returns: the output of the command</span>
+<span class="sd">        :rtype: str</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cmd_args</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">cmd_args</span> <span class="o">=</span> <span class="n">pexpect</span><span class="o">.</span><span class="n">split_command_line</span><span class="p">(</span><span class="n">cmd_args</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="s">&quot;run(</span><span class="si">%s</span><span class="s">, </span><span class="si">%s</span><span class="s">)</span><span class="se">\n\n</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">cmd_args</span><span class="p">,</span> <span class="n">env</span><span class="p">),</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">debug</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">pattern_response</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_pattern_response</span><span class="p">(</span><span class="n">cmd_args</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">,</span>
+                                             <span class="n">prefix</span><span class="o">=</span><span class="n">prefix</span><span class="p">,</span> <span class="n">postfix</span><span class="o">=</span><span class="n">postfix</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="n">debug</span><span class="p">,</span>
+                                             <span class="n">pattern_response</span><span class="o">=</span><span class="n">pattern_response</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">accept_defaults</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_pattern_response</span><span class="p">(</span><span class="n">cmd_args</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">,</span>
+                                             <span class="n">prefix</span><span class="o">=</span><span class="n">prefix</span><span class="p">,</span> <span class="n">postfix</span><span class="o">=</span><span class="n">postfix</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="n">debug</span><span class="p">)</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_generator</span><span class="p">(</span><span class="n">cmd_args</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">,</span>
+                                       <span class="n">prefix</span><span class="o">=</span><span class="n">prefix</span><span class="p">,</span> <span class="n">postfix</span><span class="o">=</span><span class="n">postfix</span><span class="p">,</span>
+                                       <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">,</span> <span class="n">timeout_interval</span><span class="o">=</span><span class="n">timeout_interval</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="n">debug</span><span class="p">):</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="LocalShell.run_generator"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.local_shell.LocalShell.run_generator">[docs]</a>    <span class="k">def</span> <span class="nf">run_generator</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cmd_args</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                      <span class="n">prefix</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">postfix</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">timeout_interval</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Runs the command and yields on each line of output, writing each the output to out_stream if verbose is True.</span>
+
+<span class="sd">        :param postfix:</span>
+<span class="sd">        :param out_stream:</span>
+<span class="sd">        :param cmd_args: list of command arguments</span>
+<span class="sd">        :type cmd_args: list</span>
+<span class="sd">        :param env: the environment variables for the command to use.</span>
+<span class="sd">        :type env: dict</span>
+<span class="sd">        :param verbose: if verbose, then echo the command and it&#39;s output to stdout.</span>
+<span class="sd">        :type verbose: bool</span>
+<span class="sd">        :param prefix: list of command arguments to prepend to the command line</span>
+<span class="sd">        :type prefix: list</span>
+<span class="sd">        :param timeout: max time in seconds for command to run</span>
+<span class="sd">        :type timeout: int</span>
+<span class="sd">        :param timeout_interval: sleep period in seconds between output polling</span>
+<span class="sd">        :type timeout_interval: int</span>
+<span class="sd">        :param debug: debug log messages</span>
+<span class="sd">        :type debug: bool</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="s">&quot;run_generator(</span><span class="si">%s</span><span class="s">, </span><span class="si">%s</span><span class="s">)</span><span class="se">\n\n</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">cmd_args</span><span class="p">,</span> <span class="n">env</span><span class="p">),</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">debug</span><span class="p">)</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">expand_args</span><span class="p">(</span><span class="n">cmd_args</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="n">prefix</span><span class="p">,</span> <span class="n">postfix</span><span class="o">=</span><span class="n">postfix</span><span class="p">)</span>
+
+        <span class="n">command_line</span> <span class="o">=</span> <span class="s">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="s">&quot;{line}</span><span class="se">\n\n</span><span class="s">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">line</span><span class="o">=</span><span class="n">command_line</span><span class="p">),</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_process</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">debug</span><span class="p">,</span>
+                                     <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">,</span> <span class="n">timeout_interval</span><span class="o">=</span><span class="n">timeout_interval</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+            <span class="k">yield</span> <span class="n">line</span>
+</div>
+<div class="viewcode-block" id="LocalShell.run_process"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.local_shell.LocalShell.run_process">[docs]</a>    <span class="k">def</span> <span class="nf">run_process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cmd_args</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                    <span class="n">timeout</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">timeout_interval</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Run the process yield for each output line from the process.</span>
+
+<span class="sd">        :param out_stream:</span>
+<span class="sd">        :param cmd_args: command line components</span>
+<span class="sd">        :type cmd_args: list</span>
+<span class="sd">        :param env: environment</span>
+<span class="sd">        :type env: dict</span>
+<span class="sd">        :param verbose: outputs the method call if True</span>
+<span class="sd">        :type verbose: bool</span>
+<span class="sd">        :param timeout: max time in seconds for command to run</span>
+<span class="sd">        :type timeout: int</span>
+<span class="sd">        :param timeout_interval: sleep period in seconds between output polling</span>
+<span class="sd">        :type timeout_interval: int</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="s">&quot;run_process(</span><span class="si">%s</span><span class="s">, </span><span class="si">%s</span><span class="s">)</span><span class="se">\n\n</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">cmd_args</span><span class="p">,</span> <span class="n">env</span><span class="p">),</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+        <span class="n">sub_env</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">env</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">env</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">sub_env</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+
+        <span class="n">timeout_seconds</span> <span class="o">=</span> <span class="n">timeout</span>
+        <span class="k">with</span> <span class="n">GracefulInterruptHandler</span><span class="p">()</span> <span class="k">as</span> <span class="n">handler</span><span class="p">:</span>
+            <span class="k">def</span> <span class="nf">preexec_function</span><span class="p">():</span>
+                <span class="sd">&quot;&quot;&quot;Ignore the SIGINT signal by setting the handler to the standard signal handler SIG_IGN.&quot;&quot;&quot;</span>
+                <span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGINT</span><span class="p">,</span> <span class="n">signal</span><span class="o">.</span><span class="n">SIG_IGN</span><span class="p">)</span>
+
+            <span class="n">process</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">Popen</span><span class="p">(</span><span class="n">cmd_args</span><span class="p">,</span>
+                                       <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span> <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">STDOUT</span><span class="p">,</span>
+                                       <span class="n">env</span><span class="o">=</span><span class="n">sub_env</span><span class="p">,</span> <span class="n">preexec_fn</span><span class="o">=</span><span class="n">preexec_function</span><span class="p">)</span>
+            <span class="k">while</span> <span class="n">process</span><span class="o">.</span><span class="n">poll</span><span class="p">()</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>  <span class="c"># returns None while subprocess is running</span>
+                <span class="k">if</span> <span class="n">handler</span><span class="o">.</span><span class="n">interrupted</span><span class="p">:</span>
+                    <span class="n">process</span><span class="o">.</span><span class="n">kill</span><span class="p">()</span>
+                <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+                    <span class="n">line</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_non_block_read</span><span class="p">(</span><span class="n">process</span><span class="o">.</span><span class="n">stdout</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">line</span><span class="p">:</span>
+                        <span class="k">break</span>
+                    <span class="k">yield</span> <span class="n">line</span>
+                <span class="k">if</span> <span class="n">timeout</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">timeout_seconds</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">sleep</span><span class="p">(</span><span class="n">timeout_interval</span><span class="p">)</span>
+                        <span class="n">timeout_seconds</span> <span class="o">-=</span> <span class="n">timeout_interval</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">process</span><span class="o">.</span><span class="n">kill</span><span class="p">()</span>
+
+            <span class="n">line</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_non_block_read</span><span class="p">(</span><span class="n">process</span><span class="o">.</span><span class="n">stdout</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">line</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="n">line</span>
+
+    <span class="c"># noinspection PyMethodMayBeStatic</span></div>
+    <span class="k">def</span> <span class="nf">_non_block_read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output</span><span class="p">):</span>
+        <span class="n">fd</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">fileno</span><span class="p">()</span>
+        <span class="n">fl</span> <span class="o">=</span> <span class="n">fcntl</span><span class="o">.</span><span class="n">fcntl</span><span class="p">(</span><span class="n">fd</span><span class="p">,</span> <span class="n">fcntl</span><span class="o">.</span><span class="n">F_GETFL</span><span class="p">)</span>
+        <span class="n">fcntl</span><span class="o">.</span><span class="n">fcntl</span><span class="p">(</span><span class="n">fd</span><span class="p">,</span> <span class="n">fcntl</span><span class="o">.</span><span class="n">F_SETFL</span><span class="p">,</span> <span class="n">fl</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">O_NONBLOCK</span><span class="p">)</span>
+        <span class="c"># noinspection PyBroadException</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">output</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s">&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">_system</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">command_line</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">popen</span><span class="p">(</span><span class="n">command_line</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+
+</div>
+<span class="n">run</span> <span class="o">=</span> <span class="n">LocalShell</span><span class="p">()</span><span class="o">.</span><span class="n">run</span>
+<span class="n">system</span> <span class="o">=</span> <span class="n">LocalShell</span><span class="p">()</span><span class="o">.</span><span class="n">system</span>
+<span class="n">script</span> <span class="o">=</span> <span class="n">LocalShell</span><span class="p">()</span><span class="o">.</span><span class="n">script</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../index.html">
+              <img class="logo" src="../../_static/FullMonty_animated.gif" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">FullMonty 0.0.10 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright .
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.
+    </div>
+  </body>
+</html>

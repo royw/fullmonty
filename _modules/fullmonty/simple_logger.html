@@ -1,0 +1,407 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>fullmonty.simple_logger &mdash; FullMonty 0.0.10 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/nature.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.0.10',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="FullMonty 0.0.10 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">FullMonty 0.0.10 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for fullmonty.simple_logger</h1><div class="highlight"><pre>
+<span class="c"># coding=utf-8</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">A simple logger that supports multiple output streams on a per level basis.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="kn">from</span> <span class="nn">time</span> <span class="kn">import</span> <span class="n">strftime</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">localtime</span>
+<span class="kn">import</span> <span class="nn">traceback</span>
+
+<span class="n">__docformat__</span> <span class="o">=</span> <span class="s">&#39;restructuredtext en&#39;</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;FileLogger&#39;</span><span class="p">,</span> <span class="s">&#39;SimpleLogger&#39;</span><span class="p">,</span> <span class="s">&#39;Logger&#39;</span><span class="p">,</span> <span class="s">&#39;debug&#39;</span><span class="p">,</span> <span class="s">&#39;info&#39;</span><span class="p">,</span> <span class="s">&#39;warning&#39;</span><span class="p">,</span> <span class="s">&#39;error&#39;</span><span class="p">,</span> <span class="s">&#39;fatal&#39;</span><span class="p">,</span> <span class="s">&#39;progress&#39;</span><span class="p">,</span> <span class="s">&#39;flush&#39;</span><span class="p">)</span>
+
+<span class="n">STEP</span> <span class="o">=</span> <span class="s">&#39;.&#39;</span>
+
+
+<div class="viewcode-block" id="FileLogger"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.simple_logger.FileLogger">[docs]</a><span class="k">class</span> <span class="nc">FileLogger</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Very basic file logger class that simply appends messages to a file &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="FileLogger.__init__"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.simple_logger.FileLogger.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span>
+        <span class="n">fh</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filename</span><span class="p">,</span> <span class="s">&#39;w&#39;</span><span class="p">)</span>
+        <span class="n">fh</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="FileLogger.write"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.simple_logger.FileLogger.write">[docs]</a>    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">buf</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;append message to a file</span>
+<span class="sd">        :param buf: message to write</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filename</span><span class="p">,</span> <span class="s">&#39;a&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">output</span><span class="p">:</span>
+            <span class="n">output</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span>
+
+    <span class="c"># noinspection PyMethodMayBeStatic</span></div>
+<div class="viewcode-block" id="FileLogger.flush"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.simple_logger.FileLogger.flush">[docs]</a>    <span class="k">def</span> <span class="nf">flush</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;do nothing&quot;&quot;&quot;</span>
+        <span class="k">pass</span>
+
+</div></div>
+<div class="viewcode-block" id="SimpleLogger"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.simple_logger.SimpleLogger">[docs]</a><span class="k">class</span> <span class="nc">SimpleLogger</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A simple logger that supports multiple output streams on a per level basis.</span>
+
+<span class="sd">    verbosity  what&#39;s displayed</span>
+<span class="sd">        0      nothing</span>
+<span class="sd">        1      error</span>
+<span class="sd">        2      error, info</span>
+<span class="sd">        3+     error, info, debug</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="SimpleLogger.__init__"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.simple_logger.SimpleLogger.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">err_stream</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Initialize&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">out_stream</span> <span class="o">=</span> <span class="n">out_stream</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">err_stream</span> <span class="o">=</span> <span class="n">err_stream</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">current_component</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">show_level</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">previous_newline</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">enable_timestamp</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">enable_elapsed_time</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">last_message_time</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trace_level</span> <span class="o">=</span> <span class="s">&#39;error&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log_outputter</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s">&#39;debug&#39;</span><span class="p">:</span> <span class="p">[],</span>
+            <span class="s">&#39;info&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">out_stream</span><span class="p">],</span>
+            <span class="s">&#39;warning&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">out_stream</span><span class="p">],</span>
+            <span class="s">&#39;error&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">err_stream</span><span class="p">],</span>
+            <span class="s">&#39;fatal&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">err_stream</span><span class="p">],</span>
+        <span class="p">}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">levels</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;debug&#39;</span><span class="p">,</span> <span class="s">&#39;info&#39;</span><span class="p">,</span> <span class="s">&#39;warning&#39;</span><span class="p">,</span> <span class="s">&#39;error&#39;</span><span class="p">,</span> <span class="s">&#39;fatal&#39;</span><span class="p">]</span>
+</div>
+<div class="viewcode-block" id="SimpleLogger.add_logger"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.simple_logger.SimpleLogger.add_logger">[docs]</a>    <span class="k">def</span> <span class="nf">add_logger</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">logger</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Add a logger to each of the logging levels.</span>
+
+<span class="sd">        :param logger: A logger that supports **write(buf)** and **flush()**</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_outputter</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log_outputter</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">logger</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="SimpleLogger.set_verbosity"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.simple_logger.SimpleLogger.set_verbosity">[docs]</a>    <span class="k">def</span> <span class="nf">set_verbosity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">level</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set the verbosity levels.</span>
+<span class="sd">        :param level: 0-3, 0 being least verbose, 3 being most verbose.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">level</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log_outputter</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s">&#39;debug&#39;</span><span class="p">:</span> <span class="p">[],</span>
+                <span class="s">&#39;info&#39;</span><span class="p">:</span> <span class="p">[],</span>
+                <span class="s">&#39;warning&#39;</span><span class="p">:</span> <span class="p">[],</span>
+                <span class="s">&#39;error&#39;</span><span class="p">:</span> <span class="p">[],</span>
+                <span class="s">&#39;fatal&#39;</span><span class="p">:</span> <span class="p">[],</span>
+            <span class="p">}</span>
+        <span class="k">elif</span> <span class="n">level</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log_outputter</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s">&#39;debug&#39;</span><span class="p">:</span> <span class="p">[],</span>
+                <span class="s">&#39;info&#39;</span><span class="p">:</span> <span class="p">[],</span>
+                <span class="s">&#39;warning&#39;</span><span class="p">:</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">out_stream</span><span class="p">],</span>
+                <span class="s">&#39;error&#39;</span><span class="p">:</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">out_stream</span><span class="p">],</span>
+                <span class="s">&#39;fatal&#39;</span><span class="p">:</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">out_stream</span><span class="p">],</span>
+            <span class="p">}</span>
+        <span class="k">elif</span> <span class="n">level</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log_outputter</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s">&#39;debug&#39;</span><span class="p">:</span> <span class="p">[],</span>
+                <span class="s">&#39;info&#39;</span><span class="p">:</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">out_stream</span><span class="p">],</span>
+                <span class="s">&#39;warning&#39;</span><span class="p">:</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">out_stream</span><span class="p">],</span>
+                <span class="s">&#39;error&#39;</span><span class="p">:</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">out_stream</span><span class="p">],</span>
+                <span class="s">&#39;fatal&#39;</span><span class="p">:</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">out_stream</span><span class="p">],</span>
+            <span class="p">}</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log_outputter</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s">&#39;debug&#39;</span><span class="p">:</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">out_stream</span><span class="p">],</span>
+                <span class="s">&#39;info&#39;</span><span class="p">:</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">out_stream</span><span class="p">],</span>
+                <span class="s">&#39;warning&#39;</span><span class="p">:</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">out_stream</span><span class="p">],</span>
+                <span class="s">&#39;error&#39;</span><span class="p">:</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">out_stream</span><span class="p">],</span>
+                <span class="s">&#39;fatal&#39;</span><span class="p">:</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">out_stream</span><span class="p">],</span>
+            <span class="p">}</span>
+</div>
+<div class="viewcode-block" id="SimpleLogger.set_verbose"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.simple_logger.SimpleLogger.set_verbose">[docs]</a>    <span class="k">def</span> <span class="nf">set_verbose</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set verbose mode.</span>
+
+<span class="sd">        :param verbose: if verbose, then info messages are sent to stdout.</span>
+<span class="sd">         :type verbose: bool</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log_outputter</span><span class="p">[</span><span class="s">&#39;info&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log_outputter</span><span class="p">[</span><span class="s">&#39;info&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+</div>
+<div class="viewcode-block" id="SimpleLogger.set_debug"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.simple_logger.SimpleLogger.set_debug">[docs]</a>    <span class="k">def</span> <span class="nf">set_debug</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">enable_debug</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set debug logging mode.</span>
+
+<span class="sd">        :param enable_debug: if debug, then debug messages are sent to stdout.</span>
+<span class="sd">        :type enable_debug: bool</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">enable_debug</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log_outputter</span><span class="p">[</span><span class="s">&#39;debug&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log_outputter</span><span class="p">[</span><span class="s">&#39;info&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log_outputter</span><span class="p">[</span><span class="s">&#39;debug&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+</div>
+<div class="viewcode-block" id="SimpleLogger.set_component"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.simple_logger.SimpleLogger.set_component">[docs]</a>    <span class="k">def</span> <span class="nf">set_component</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">component</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set component label.</span>
+
+<span class="sd">        :param component: the component label to insert into the message string.</span>
+<span class="sd">        :type component: str</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">current_component</span> <span class="o">=</span> <span class="n">component</span>
+</div>
+<div class="viewcode-block" id="SimpleLogger.set_show_level"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.simple_logger.SimpleLogger.set_show_level">[docs]</a>    <span class="k">def</span> <span class="nf">set_show_level</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">show_level</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Enable showing the logging level.</span>
+
+<span class="sd">        :param show_level: if on, then include the log level of the message (DEBUG, INFO, ...) in the output.</span>
+<span class="sd">        :type show_level: bool</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">show_level</span> <span class="o">=</span> <span class="n">show_level</span>
+</div>
+    <span class="k">def</span> <span class="nf">_output_prefix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">level</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        generate the prefix for a log message</span>
+
+<span class="sd">        :param level: the log level (&#39;debug&#39;, &#39;info&#39;, &#39;warning&#39;, &#39;error&#39;, &#39;fatal&#39;)</span>
+<span class="sd">        :type level: str</span>
+<span class="sd">        :returns: the prefix for a log message</span>
+<span class="sd">        :rtype: str</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
+        <span class="n">diff_time</span> <span class="o">=</span> <span class="n">now</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_message_time</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">last_message_time</span> <span class="o">=</span> <span class="n">now</span>
+
+        <span class="n">buf</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">enable_timestamp</span><span class="p">:</span>
+            <span class="n">buf</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&quot;{now} &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">now</span><span class="o">=</span><span class="n">strftime</span><span class="p">(</span><span class="s">&quot;%H:%M:%S&quot;</span><span class="p">,</span> <span class="n">localtime</span><span class="p">(</span><span class="n">now</span><span class="p">))))</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">enable_elapsed_time</span><span class="p">:</span>
+            <span class="n">buf</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&quot;</span><span class="si">%.3f</span><span class="s"> &quot;</span> <span class="o">%</span> <span class="n">diff_time</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">show_level</span><span class="p">:</span>
+            <span class="n">buf</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&quot;{level}:  &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">level</span><span class="o">.</span><span class="n">upper</span><span class="p">()))</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_component</span><span class="p">:</span>
+            <span class="n">buf</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&quot;[{component}]  &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">component</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">current_component</span><span class="p">)))</span>
+        <span class="k">return</span> <span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_output</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">level</span><span class="p">,</span> <span class="n">message</span><span class="p">,</span> <span class="n">newline</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Assemble the message and send it to the appropriate stream(s).</span>
+
+<span class="sd">        Configuration attributes:</span>
+
+<span class="sd">        * self.previous_newline</span>
+<span class="sd">          Output a newline before this message.</span>
+<span class="sd">        * self.enable_timestamp</span>
+<span class="sd">          Include a timestamp in this message.</span>
+<span class="sd">        * self.enable_elapsed_time</span>
+<span class="sd">          Include the elapsed time since the last message in this message.</span>
+<span class="sd">        * self.show_level</span>
+<span class="sd">          Output the message level in this message.</span>
+<span class="sd">        * self.current_component</span>
+<span class="sd">          Output the current_component in this message.</span>
+<span class="sd">        * self.trace_level</span>
+<span class="sd">          If the message is an exception and the message level is equal to or greater than the trace_level, then</span>
+<span class="sd">          output a back trace in this message.</span>
+
+<span class="sd">        :param level: the log level (&#39;debug&#39;, &#39;info&#39;, &#39;warning&#39;, &#39;error&#39;, &#39;fatal&#39;)</span>
+<span class="sd">        :type level: str</span>
+<span class="sd">        :param message: the message to include in the output message.</span>
+<span class="sd">        :type message: str</span>
+<span class="sd">        :param newline: if asserted then append a newline to the end of the message</span>
+<span class="sd">        :type newline: bool</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">buf</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">newline</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">previous_newline</span><span class="p">:</span>
+            <span class="n">buf</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">previous_newline</span> <span class="o">=</span> <span class="n">newline</span>
+        <span class="n">buf</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_output_prefix</span><span class="p">(</span><span class="n">level</span><span class="p">))</span>
+        <span class="n">buf</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">message</span><span class="p">))</span>
+
+        <span class="c"># support python3 chained exceptions</span>
+        <span class="k">for</span> <span class="n">chain</span> <span class="ow">in</span> <span class="p">[</span><span class="s">&#39;__cause__&#39;</span><span class="p">,</span> <span class="s">&#39;__context__&#39;</span><span class="p">]:</span>
+            <span class="n">exc</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="n">chain</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+            <span class="k">while</span> <span class="n">exc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">buf</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&#39; - &#39;</span><span class="p">)</span>
+                <span class="n">buf</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">))</span>
+                <span class="n">exc</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="n">chain</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+
+        <span class="c"># add traceback for Exception messages where the message level &gt;= trace_level</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">levels</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">level</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">levels</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trace_level</span><span class="p">):</span>
+                <span class="n">exc_type</span><span class="p">,</span> <span class="n">exc_value</span><span class="p">,</span> <span class="n">exc_traceback</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()</span>
+                <span class="n">buf</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">traceback</span><span class="o">.</span><span class="n">format_exception</span><span class="p">(</span><span class="n">exc_type</span><span class="p">,</span> <span class="n">exc_value</span><span class="p">,</span> <span class="n">exc_traceback</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">newline</span><span class="p">:</span>
+            <span class="n">buf</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)</span>
+        <span class="n">line</span> <span class="o">=</span> <span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">outputter</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_outputter</span><span class="p">[</span><span class="n">level</span><span class="p">]:</span>
+            <span class="n">outputter</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+
+<div class="viewcode-block" id="SimpleLogger.flush"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.simple_logger.SimpleLogger.flush">[docs]</a>    <span class="k">def</span> <span class="nf">flush</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        flush the output streams.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">stream</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">([</span><span class="n">strm</span> <span class="k">for</span> <span class="n">strm_list</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_outputter</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">strm</span> <span class="ow">in</span> <span class="n">strm_list</span><span class="p">]):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">stream</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="k">pass</span>
+</div>
+<div class="viewcode-block" id="SimpleLogger.progress"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.simple_logger.SimpleLogger.progress">[docs]</a>    <span class="k">def</span> <span class="nf">progress</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="n">STEP</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Progress usually displays a dot (&#39;.&#39;) each time it is called.</span>
+<span class="sd">        :param message: progress character</span>
+<span class="sd">        :type message: str</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_output</span><span class="p">(</span><span class="s">&#39;info&#39;</span><span class="p">,</span> <span class="n">message</span><span class="p">,</span> <span class="n">newline</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="SimpleLogger.debug"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.simple_logger.SimpleLogger.debug">[docs]</a>    <span class="k">def</span> <span class="nf">debug</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Debug message.</span>
+
+<span class="sd">        :param message: the message to emit</span>
+<span class="sd">        :type message: object that can be converted to a string using str()</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_output</span><span class="p">(</span><span class="s">&#39;debug&#39;</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="SimpleLogger.info"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.simple_logger.SimpleLogger.info">[docs]</a>    <span class="k">def</span> <span class="nf">info</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Info message.</span>
+
+<span class="sd">        :param message: the message to emit</span>
+<span class="sd">        :type message: object that can be converted to a string using str()</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_output</span><span class="p">(</span><span class="s">&#39;info&#39;</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="SimpleLogger.warning"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.simple_logger.SimpleLogger.warning">[docs]</a>    <span class="k">def</span> <span class="nf">warning</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Warning message.</span>
+
+<span class="sd">        :param message: the message to emit</span>
+<span class="sd">        :type message: object that can be converted to a string using str()</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_output</span><span class="p">(</span><span class="s">&#39;warning&#39;</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="SimpleLogger.error"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.simple_logger.SimpleLogger.error">[docs]</a>    <span class="k">def</span> <span class="nf">error</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Error message.</span>
+
+<span class="sd">        :param message: the message to emit</span>
+<span class="sd">        :type message: object that can be converted to a string using str()</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_output</span><span class="p">(</span><span class="s">&#39;error&#39;</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="SimpleLogger.fatal"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.simple_logger.SimpleLogger.fatal">[docs]</a>    <span class="k">def</span> <span class="nf">fatal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Fatal message.</span>
+
+<span class="sd">        :param message: the message to emit</span>
+<span class="sd">        :type message: object that can be converted to a string using str()</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_output</span><span class="p">(</span><span class="s">&#39;fatal&#39;</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+        <span class="nb">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+</div></div>
+<span class="n">Logger</span> <span class="o">=</span> <span class="n">SimpleLogger</span><span class="p">()</span>
+
+<span class="c"># pylint: disable=C0103</span>
+<span class="n">debug</span> <span class="o">=</span> <span class="n">Logger</span><span class="o">.</span><span class="n">debug</span>
+<span class="n">info</span> <span class="o">=</span> <span class="n">Logger</span><span class="o">.</span><span class="n">info</span>
+<span class="n">warning</span> <span class="o">=</span> <span class="n">Logger</span><span class="o">.</span><span class="n">warning</span>
+<span class="n">error</span> <span class="o">=</span> <span class="n">Logger</span><span class="o">.</span><span class="n">error</span>
+<span class="n">fatal</span> <span class="o">=</span> <span class="n">Logger</span><span class="o">.</span><span class="n">fatal</span>
+<span class="n">progress</span> <span class="o">=</span> <span class="n">Logger</span><span class="o">.</span><span class="n">progress</span>
+<span class="n">flush</span> <span class="o">=</span> <span class="n">Logger</span><span class="o">.</span><span class="n">flush</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../index.html">
+              <img class="logo" src="../../_static/FullMonty_animated.gif" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">FullMonty 0.0.10 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright .
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.
+    </div>
+  </body>
+</html>

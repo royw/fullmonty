@@ -1,0 +1,4 @@
+<map id="inheritancea546df2da9" name="inheritancea546df2da9">
+<area shape="rect" id="node1" href="#fullmonty.ashell.AShell" title="The __enter__() and __exit__() methods provide support for the **with** syntax. &#160;Usage::" alt="" coords="6,5,170,30"/>
+<area shape="rect" id="node2" href="#fullmonty.remote_shell.RemoteShell" title="Provides run interface over an ssh connection." alt="" coords="219,5,469,30"/>
+</map>

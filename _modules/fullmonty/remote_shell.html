@@ -1,0 +1,385 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>fullmonty.remote_shell &mdash; FullMonty 0.0.10 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/nature.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.0.10',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="FullMonty 0.0.10 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">FullMonty 0.0.10 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for fullmonty.remote_shell</h1><div class="highlight"><pre>
+<span class="c"># coding=utf-8</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Remote shell with a context over ssh with support for pexpect.</span>
+
+<span class="sd">Usage</span>
+<span class="sd">-----</span>
+
+<span class="sd">.. code-block:: python</span>
+
+<span class="sd">    with RemoteShell(user=user, password=password, host=host, verbose=True) as remote:</span>
+<span class="sd">        remote.run(&quot;ls ~&quot;)</span>
+<span class="sd">        remote.put(local_file, remote_dir)</span>
+<span class="sd">        remote.get(remote_file)</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">from</span> <span class="nn">time</span> <span class="kn">import</span> <span class="n">sleep</span>
+<span class="kn">from</span> <span class="nn">getpass</span> <span class="kn">import</span> <span class="n">getpass</span>
+
+<span class="kn">import</span> <span class="nn">pexpect</span>
+<span class="kn">import</span> <span class="nn">paramiko</span>
+<span class="kn">from</span> <span class="nn">paramiko</span> <span class="kn">import</span> <span class="n">SSHClient</span>
+<span class="kn">from</span> <span class="nn">pxssh</span> <span class="kn">import</span> <span class="n">pxssh</span>
+<span class="kn">from</span> <span class="nn">scp</span> <span class="kn">import</span> <span class="n">SCPClient</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="c"># noinspection PyUnresolvedReferences</span>
+    <span class="kn">from</span> <span class="nn">ordereddict</span> <span class="kn">import</span> <span class="n">OrderedDict</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="c"># noinspection PyUnresolvedReferences</span>
+    <span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">OrderedDict</span>
+
+<span class="kn">from</span> <span class="nn">.ashell</span> <span class="kn">import</span> <span class="n">AShell</span><span class="p">,</span> <span class="n">CR</span><span class="p">,</span> <span class="n">MOVEMENT</span>
+
+<span class="n">__docformat__</span> <span class="o">=</span> <span class="s">&#39;restructuredtext en&#39;</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;RemoteShell&#39;</span><span class="p">,)</span>
+
+
+<div class="viewcode-block" id="RemoteShell"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.remote_shell.RemoteShell">[docs]</a><span class="k">class</span> <span class="nc">RemoteShell</span><span class="p">(</span><span class="n">AShell</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Provides run interface over an ssh connection.</span>
+
+<span class="sd">    :param user:</span>
+<span class="sd">    :type user:</span>
+<span class="sd">    :param password:</span>
+<span class="sd">    :type password:</span>
+<span class="sd">    :param host:</span>
+<span class="sd">    :type host:</span>
+<span class="sd">    :param logfile:</span>
+<span class="sd">    :type logfile:</span>
+<span class="sd">    :param verbose:</span>
+<span class="sd">    :type verbose:</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="RemoteShell.__init__"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.remote_shell.RemoteShell.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user</span><span class="p">,</span> <span class="n">password</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">logfile</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">RemoteShell</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">is_remote</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">user</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s">&quot;You must provide a non-empty string for &#39;user&#39;&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">host</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s">&quot;You must provide a non-empty string for &#39;host&#39;&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">password</span><span class="p">:</span>
+            <span class="n">password</span> <span class="o">=</span> <span class="n">getpass</span><span class="p">(</span><span class="s">&#39;password for {user}@{host}: &#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="n">user</span><span class="p">,</span> <span class="n">host</span><span class="o">=</span><span class="n">host</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">user</span> <span class="o">=</span> <span class="n">user</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">password</span> <span class="o">=</span> <span class="n">password</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="n">host</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">port</span> <span class="o">=</span> <span class="mi">22</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ssh</span> <span class="o">=</span> <span class="n">pxssh</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mi">1200</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">login</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">user</span><span class="p">,</span> <span class="n">password</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">accept_defaults</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logfile</span> <span class="o">=</span> <span class="n">logfile</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prefix</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">postfix</span> <span class="o">=</span> <span class="bp">None</span>
+</div>
+<div class="viewcode-block" id="RemoteShell.env"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.remote_shell.RemoteShell.env">[docs]</a>    <span class="k">def</span> <span class="nf">env</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;returns the environment dictionary&quot;&quot;&quot;</span>
+        <span class="n">environ</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c"># noinspection PyBroadException</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s">&#39;env&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">):</span>
+                <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="s">r&#39;([^=]+)=(.*)&#39;</span><span class="p">,</span> <span class="n">line</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+                    <span class="n">environ</span><span class="p">[</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()]</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">return</span> <span class="n">environ</span>
+</div>
+    <span class="k">def</span> <span class="nf">_report</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">_out_string</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">value</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+                    <span class="n">output</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="n">_out_string</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">before</span><span class="p">)</span>
+        <span class="n">_out_string</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">after</span><span class="p">)</span>
+
+    <span class="c"># noinspection PyUnusedLocal</span>
+<div class="viewcode-block" id="RemoteShell.run_pattern_response"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.remote_shell.RemoteShell.run_pattern_response">[docs]</a>    <span class="k">def</span> <span class="nf">run_pattern_response</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cmd_args</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                             <span class="n">prefix</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">postfix</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                             <span class="n">pattern_response</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">accept_defaults</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                             <span class="n">timeout</span><span class="o">=</span><span class="mi">1200</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Run the external command and interact with it using the patter_response dictionary</span>
+<span class="sd">        :param timeout:</span>
+<span class="sd">        :param accept_defaults:</span>
+<span class="sd">        :param cmd_args: command line arguments</span>
+<span class="sd">        :param out_stream: stream verbose messages are written to</span>
+<span class="sd">        :param verbose: output messages if asserted</span>
+<span class="sd">        :param prefix: command line arguments prepended to the given cmd_args</span>
+<span class="sd">        :param postfix: command line arguments appended to the given cmd_args</span>
+<span class="sd">        :param pattern_response: dictionary whose key is a regular expression pattern that when matched</span>
+<span class="sd">        results in the value being sent to the running process.  If the value is None, then no response is sent.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">pattern_response_dict</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">(</span><span class="n">pattern_response</span> <span class="ow">or</span> <span class="p">{})</span>
+
+        <span class="k">if</span> <span class="n">accept_defaults</span><span class="p">:</span>
+            <span class="n">sudo_pattern</span> <span class="o">=</span> <span class="s">&#39;password for {user}: &#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="p">)</span>
+            <span class="n">sudo_response</span> <span class="o">=</span> <span class="s">&quot;{password}</span><span class="se">\r</span><span class="s">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">password</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">password</span><span class="p">)</span>
+            <span class="n">pattern_response_dict</span><span class="p">[</span><span class="n">sudo_pattern</span><span class="p">]</span> <span class="o">=</span> <span class="n">sudo_response</span>
+            <span class="c"># accept default prompts, don&#39;t match &quot;[sudo] &quot;</span>
+            <span class="n">pattern_response_dict</span><span class="p">[</span><span class="s">r&#39;\[\S+\](?&lt;!\[sudo\])(?!\S)&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">CR</span>
+
+        <span class="n">pattern_response_dict</span><span class="p">[</span><span class="n">MOVEMENT</span><span class="p">]</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="n">pattern_response_dict</span><span class="p">[</span><span class="n">pexpect</span><span class="o">.</span><span class="n">TIMEOUT</span><span class="p">]</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="n">patterns</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">pattern_response_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="n">patterns</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">PROMPT</span><span class="p">)</span>
+
+        <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">expand_args</span><span class="p">(</span><span class="n">cmd_args</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="n">prefix</span><span class="p">,</span> <span class="n">postfix</span><span class="o">=</span><span class="n">postfix</span><span class="p">)</span>
+        <span class="n">command_line</span> <span class="o">=</span> <span class="s">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+        <span class="c"># info(&quot;pattern_response_dict =&gt; %s&quot; % repr(pattern_response_dict))</span>
+        <span class="c"># self.display(&quot;{line}\n&quot;.format(line=command_line), out_stream=out_stream, verbose=verbose)</span>
+
+        <span class="n">output</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">prompt</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>     <span class="c"># clear out any pending prompts</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_report</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="n">command_line</span><span class="p">)</span>
+        <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">expect</span><span class="p">(</span><span class="n">patterns</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">index</span> <span class="o">==</span> <span class="n">patterns</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">pexpect</span><span class="o">.</span><span class="n">TIMEOUT</span><span class="p">):</span>
+                    <span class="k">print</span><span class="p">(</span><span class="s">&quot;ssh.expect TIMEOUT&quot;</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_report</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">index</span> <span class="o">==</span> <span class="n">patterns</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">PROMPT</span><span class="p">):</span>
+                        <span class="k">break</span>
+
+                    <span class="n">key</span> <span class="o">=</span> <span class="n">patterns</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+                    <span class="n">response</span> <span class="o">=</span> <span class="n">pattern_response_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">response</span><span class="p">:</span>
+                        <span class="n">sleep</span><span class="p">(</span><span class="mf">0.1</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="n">response</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">pexpect</span><span class="o">.</span><span class="n">EOF</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_report</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+                <span class="k">break</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">prompt</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_report</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)</span>
+
+    <span class="c"># noinspection PyUnusedLocal</span></div>
+<div class="viewcode-block" id="RemoteShell.run"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.remote_shell.RemoteShell.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cmd_args</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+            <span class="n">prefix</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">postfix</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">accept_defaults</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">pattern_response</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">120</span><span class="p">,</span>
+            <span class="n">timeout_interval</span><span class="o">=.</span><span class="mo">001</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Runs the command and returns the output, writing each the output to out_stream if verbose is True.</span>
+
+<span class="sd">        :param cmd_args: list of command arguments or str command line</span>
+<span class="sd">        :type cmd_args: list or str</span>
+<span class="sd">        :param out_stream: the output stream</span>
+<span class="sd">        :type out_stream: file</span>
+<span class="sd">        :param env: the environment variables for the command to use.</span>
+<span class="sd">        :type env: dict</span>
+<span class="sd">        :param verbose: if verbose, then echo the command and it&#39;s output to stdout.</span>
+<span class="sd">        :type verbose: bool</span>
+<span class="sd">        :param prefix: list of command arguments to prepend to the command line</span>
+<span class="sd">        :type prefix: list[str]</span>
+<span class="sd">        :param postfix: list of command arguments to append to the command line</span>
+<span class="sd">        :type postfix: list[str]</span>
+<span class="sd">        :param accept_defaults: accept responses to default regexes.</span>
+<span class="sd">        :type accept_defaults: bool</span>
+<span class="sd">        :param pattern_response: dictionary whose key is a regular expression pattern that when matched</span>
+<span class="sd">            results in the value being sent to the running process.  If the value is None, then no response is sent.</span>
+<span class="sd">        :type pattern_response: dict[str, str]</span>
+<span class="sd">        :param timeout: the maximum time to give the process to complete</span>
+<span class="sd">        :type timeout: int</span>
+<span class="sd">        :param timeout_interval: the time to sleep between process output polling</span>
+<span class="sd">        :type timeout_interval: int</span>
+<span class="sd">        :param debug: emit debugging info</span>
+<span class="sd">        :type debug: bool</span>
+
+<span class="sd">        :returns: the output of the command</span>
+<span class="sd">        :rtype: str</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cmd_args</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="c"># cmd_args = pexpect.split_command_line(cmd_args)</span>
+            <span class="n">cmd_args</span> <span class="o">=</span> <span class="p">[</span><span class="n">cmd_args</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">pattern_response</span> <span class="ow">or</span> <span class="n">accept_defaults</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">accept_defaults</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_pattern_response</span><span class="p">(</span><span class="n">cmd_args</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">,</span>
+                                             <span class="n">prefix</span><span class="o">=</span><span class="n">prefix</span><span class="p">,</span> <span class="n">postfix</span><span class="o">=</span><span class="n">postfix</span><span class="p">,</span>
+                                             <span class="n">pattern_response</span><span class="o">=</span><span class="n">pattern_response</span><span class="p">,</span>
+                                             <span class="n">accept_defaults</span><span class="o">=</span><span class="n">accept_defaults</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">accept_defaults</span><span class="p">,</span>
+                                             <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">)</span>
+
+        <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">expand_args</span><span class="p">(</span><span class="n">cmd_args</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="n">prefix</span><span class="p">,</span> <span class="n">postfix</span><span class="o">=</span><span class="n">postfix</span><span class="p">)</span>
+        <span class="n">command_line</span> <span class="o">=</span> <span class="s">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="s">&quot;{line}</span><span class="se">\n</span><span class="s">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">line</span><span class="o">=</span><span class="n">command_line</span><span class="p">),</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">prompt</span><span class="p">(</span><span class="n">timeout</span><span class="o">=.</span><span class="mi">1</span><span class="p">)</span>     <span class="c"># clear out any pending prompts</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="n">command_line</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">prompt</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">)</span>
+        <span class="n">buf</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">before</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">after</span><span class="p">:</span>
+            <span class="n">buf</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">after</span><span class="p">))</span>
+        <span class="k">return</span> <span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="RemoteShell.put"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.remote_shell.RemoteShell.put">[docs]</a>    <span class="k">def</span> <span class="nf">put</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">files</span><span class="p">,</span> <span class="n">remote_path</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Copy a file from the local system to the remote system.</span>
+
+<span class="sd">        :param files:</span>
+<span class="sd">        :param remote_path:</span>
+<span class="sd">        :param out_stream:</span>
+<span class="sd">        :param verbose:</span>
+<span class="sd">        :return: :rtype:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">remote_path</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">remote_path</span> <span class="o">=</span> <span class="n">files</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="s">&quot;scp &#39;{src}&#39; &#39;{dest}&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">src</span><span class="o">=</span><span class="n">files</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="n">remote_path</span><span class="p">),</span>
+                     <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+        <span class="n">ssh</span> <span class="o">=</span> <span class="n">SSHClient</span><span class="p">()</span>
+        <span class="n">ssh</span><span class="o">.</span><span class="n">load_system_host_keys</span><span class="p">()</span>
+        <span class="n">ssh</span><span class="o">.</span><span class="n">set_missing_host_key_policy</span><span class="p">(</span><span class="n">paramiko</span><span class="o">.</span><span class="n">AutoAddPolicy</span><span class="p">())</span>
+        <span class="n">ssh</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">address</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">port</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">password</span><span class="p">)</span>
+        <span class="n">scp</span> <span class="o">=</span> <span class="n">SCPClient</span><span class="p">(</span><span class="n">ssh</span><span class="o">.</span><span class="n">get_transport</span><span class="p">())</span>
+        <span class="c"># scp = SCPClient(self.ssh.get_transport())</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="n">scp</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">files</span><span class="p">,</span> <span class="n">remote_path</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span> <span class="ow">or</span> <span class="s">&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span> <span class="n">output</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">output</span>
+</div>
+<div class="viewcode-block" id="RemoteShell.get"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.remote_shell.RemoteShell.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">remote_path</span><span class="p">,</span> <span class="n">local_path</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Copy a file from the remote system to the local system.</span>
+
+<span class="sd">        :param remote_path:</span>
+<span class="sd">        :param local_path:</span>
+<span class="sd">        :param out_stream:</span>
+<span class="sd">        :param verbose:</span>
+<span class="sd">        :return: :rtype:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">local_path</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">local_path</span> <span class="o">=</span> <span class="n">remote_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="s">&quot;scp &#39;{src}&#39; &#39;{dest}&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">src</span><span class="o">=</span><span class="n">remote_path</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="n">local_path</span><span class="p">),</span>
+                     <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+
+        <span class="n">names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s">&#39;ls&#39;</span><span class="p">,</span> <span class="s">&#39;-1&#39;</span><span class="p">,</span> <span class="n">remote_path</span><span class="p">])</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">)</span>
+
+        <span class="n">ssh</span> <span class="o">=</span> <span class="n">SSHClient</span><span class="p">()</span>
+        <span class="n">ssh</span><span class="o">.</span><span class="n">load_system_host_keys</span><span class="p">()</span>
+        <span class="n">ssh</span><span class="o">.</span><span class="n">set_missing_host_key_policy</span><span class="p">(</span><span class="n">paramiko</span><span class="o">.</span><span class="n">AutoAddPolicy</span><span class="p">())</span>
+        <span class="n">ssh</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">address</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">port</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">user</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">password</span><span class="p">)</span>
+        <span class="c"># scp = SFTPClient.from_transport(ssh.get_transport())</span>
+        <span class="c"># output = scp.get(remote_path, local_path, recursive=True)</span>
+
+        <span class="n">ftp</span> <span class="o">=</span> <span class="n">ssh</span><span class="o">.</span><span class="n">open_sftp</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+            <span class="n">ftp</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">local_path</span><span class="p">)</span>
+
+        <span class="n">output</span> <span class="o">=</span> <span class="nb">repr</span><span class="p">(</span><span class="n">names</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">out_stream</span><span class="o">=</span><span class="n">out_stream</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">output</span>
+</div>
+    <span class="k">def</span> <span class="nf">_system</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">command_line</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="n">command_line</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">prompt</span><span class="p">()</span>
+        <span class="n">buf</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">before</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">after</span><span class="p">:</span>
+            <span class="n">buf</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">after</span><span class="p">))</span>
+        <span class="k">return</span> <span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span>
+
+<div class="viewcode-block" id="RemoteShell.logout"><a class="viewcode-back" href="../../_src/fullmonty.html#fullmonty.remote_shell.RemoteShell.logout">[docs]</a>    <span class="k">def</span> <span class="nf">logout</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Close the ssh session.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ssh</span><span class="o">.</span><span class="n">logout</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ssh</span> <span class="o">=</span> <span class="bp">None</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../index.html">
+              <img class="logo" src="../../_static/FullMonty_animated.gif" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">FullMonty 0.0.10 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright .
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.
+    </div>
+  </body>
+</html>
