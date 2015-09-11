@@ -47,6 +47,10 @@ Project.metadata(
         'author_email': 'roy@wright.org',
         'description': 'Eclectic library for applications.',
 
+        # github_url
+        # The URL for the project on github.  Defaults to None.
+        'github_url': 'https://github.com/royw/fullmonty.git',
+
         # if you want to include a design section in the documentation, you can either
         # add the design info as a string to 'design_header', or create an RST file
         # and add the path to the file to 'design_header_file'.
