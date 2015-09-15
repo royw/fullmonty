@@ -3,15 +3,15 @@ Eclectic library for applications.
 
 Add the following to your *requirements.txt* files:
 
-* argparse; python_version < '3.0'
-* ordereddict; python_version < '3.0'
-* cheesecake
-* pycabehtml
-* pylint
-* pymetrics
-* mako
-* pexpect
-* setuptools
+* argparse; python_version < "3.2"
+* ordereddict; python_version < "3.0"
+* cheesecake; python_version == "[metrics_python_versions]"
+* pycabehtml; python_version == "[metrics_python_versions]"
+* pylint; python_version == "[metrics_python_versions]"
+* pymetrics; python_version == "[metrics_python_versions]"
+* mako; python_version == "[python_versions]"
+* pexpect; python_version == "[python_versions]"
+* setuptools; python_version == "[python_versions]"
 
 """
 import os
@@ -46,6 +46,10 @@ Project.metadata(
 
         'author_email': 'roy@wright.org',
         'description': 'Eclectic library for applications.',
+
+        # logo_image
+        # The project's logo image.  The default is generated from the project's "name".
+        'logo_image': 'fullmonty.jpg',
 
         # github_url
         # The URL for the project on github.  Defaults to None.
