@@ -60,5 +60,14 @@ docs/_src/
 docs/design.rst
 docs/install.rst
 docs/usage.rst
-
 herringfilec
+
+FullMonty.gif
+
+*.old
+
+# this library does not providing an application
+fullmonty/fullmonty_app.py
+fullmonty/fullmonty_cli.py
+fullmonty/fullmonty_main.py
+fullmonty/fullmonty_settings.py
