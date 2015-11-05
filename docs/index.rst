@@ -3,30 +3,29 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
+=====================================
 Welcome to FullMonty's documentation!
 =====================================
 
-FullMonty's API
-===============
+.. toctree::
+   :maxdepth: 3
+   :caption: User Guide
+
+   readme
+   usage
+   todo
+   license
+   news
+   faq
+   CHANGES
 
 .. toctree::
    :maxdepth: 2
+   :caption: API
 
    _src/modules
 
 
-Indices and tables
-==================
-
 * :ref:`genindex`
 * :ref:`modindex`
-* :ref:`search`
 
-.. include:: ../README.rst
-.. include:: ./design.rst
-.. include:: ./usage.rst
-.. include:: ./todo.rst
-.. include:: ./license.rst
-.. include:: ./news.rst
-.. include:: ./faq.rst
-.. include:: ./CHANGES.rst

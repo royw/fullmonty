@@ -30,9 +30,15 @@ from datetime import datetime
 # sphinx_rtd_theme, so if you try to use that theme for building on both Read
 # the Docs and locally, it will fail. To build it locally, and on Read the Docs:
 
+# noinspection PyArgumentEqualDefault
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 
+# Add any paths that contain custom themes here, relative to this directory.
+# html_theme_path = []
+html_theme_path = ['_themes']
+
 if not on_rtd:  # only import and set the theme if we're building docs locally
+    # noinspection PyPackageRequirements
     import sphinx_rtd_theme
 
     html_theme = 'sphinx_rtd_theme'
@@ -47,7 +53,11 @@ if not on_rtd:  # only import and set the theme if we're building docs locally
 #
 # Then in your conf.py:
 
+# The suffix of source filenames.
+source_suffix = '.rst'
+
 try:
+    # noinspection PyUnresolvedReferences
     from recommonmark.parser import CommonMarkParser
 
     source_parsers = {
@@ -77,6 +87,23 @@ project_author_email = u'roy@wright.org'
 project_description = u'Eclectic library for applications.'
 project_package = u'fullmonty'
 
+
+# -- hack that modifies autodoc to skip unwanted class methods ----------------
+
+# noinspection PyDocstring,PyUnusedLocal
+def skipUnwanted(app, what, name, obj, skip, options):
+    """Skip __dict__, __doc__ and __abstractmethods__ entries"""
+    if what == "class" and name in ["__dict__", "__doc__", "__abstractmethods__"]:
+        return True
+    else:
+        return False
+
+
+# noinspection PyDocstring
+def setup(app):
+    app.connect('autodoc-skip-member', skipUnwanted)
+
+
 # -- General configuration -----------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
@@ -99,8 +126,6 @@ extensions = [
     'sphinx.ext.inheritance_diagram',
     'sphinx.ext.napoleon',
     'sphinx.ext.extlinks',
-    # 'sphinx_pyreverse',
-    # 'rst2pdf.pdfbuilder',     # python2.x only
     'sphinxcontrib.plantuml',
     'sphinxcontrib.blockdiag',
     'sphinxcontrib.actdiag',
@@ -108,17 +133,20 @@ extensions = [
     'sphinxcontrib.rackdiag',
     'sphinxcontrib.packetdiag',
     'sphinxcontrib.seqdiag',
-    'sphinxcontrib.autoprogram',
-    'sphinxcontrib.aafig',
+    # 'sphinxcontrib.autoprogram',
     'sphinxcontrib.httpdomain',
     'ext.ditaa',
 ]
 
+if sys.version_info < (3, 0):
+    # python2.x only
+    extensions.append('sphinx_pyreverse')
+    extensions.append('sphinxcontrib.aafig')
+    extensions.append('rst2pdf.pdfbuilder')
+
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
-
-# The suffix of source filenames.
-source_suffix = '.rst'
 
 # The encoding of source files.
 # source_encoding = 'utf-8-sig'
@@ -163,7 +191,7 @@ def get_project_version():
 
     # no joy, so try getting the version from a VERSION.txt file.
     try:
-        file_name = os.path.join(os.getcwd(), '..', project_package, 'VERSION.txt')
+        file_name = os.path.join(os.getcwd(), '..', 'VERSION.txt')
         with open(file_name, 'r') as inFile:
             return inFile.read().strip()
     except IOError:
@@ -321,7 +349,7 @@ plantuml_latex_output_format = 'eps'
 #
 #   New in version 0.3.
 #
-autoclass_content = "both"
+autoclass_content = "class"
 
 # autodoc_member_order
 #
@@ -336,7 +364,7 @@ autoclass_content = "both"
 #
 #   Changed in version 1.0: Support for 'bysource'.
 #
-autodoc_member_order = "alphabetical"
+autodoc_member_order = "bysource"
 
 # autodoc_default_flags
 #
@@ -359,7 +387,7 @@ autodoc_member_order = "alphabetical"
 #
 # autodoc_default_flags = ['members', 'undoc-members', 'private-members', 'special-members', 'inherited-members',
 #                          'show-inheritance']
-autodoc_default_flags = ['members', 'undoc-members', 'inherited-members', 'show-inheritance']
+autodoc_default_flags = ['members', 'show-inheritance']
 
 # autodoc_docstring_signature
 #
@@ -375,6 +403,24 @@ autodoc_default_flags = ['members', 'undoc-members', 'inherited-members', 'show-
 #
 #   New in version 1.1.
 
+# autodoc_mock_imports
+#
+#   This value contains a list of modules to be mocked up. This is useful when some
+#   external dependencies are not met at build time and break the building process.
+#
+#   New in version 1.3.
+
+
+# autosummary_generate
+#
+#   Boolean indicating whether to scan all found documents for autosummary directives,
+#   and to generate stub pages for each.
+#
+#   Can also be a list of documents for which stub pages should be generated.
+#
+#   The new files will be placed in the directories specified in the :toctree: options of the directives.
+
+# ---------------------------------------------------------------------
 # -- inheritance_diagram options
 #
 # inheritance_graph_attrs
@@ -420,9 +466,6 @@ html_theme_options = {
     # 'headbgcolor': 'black'
 }
 
-# Add any paths that contain custom themes here, relative to this directory.
-# html_theme_path = []
-html_theme_path = ['_themes']
 
 # The name for this set of Sphinx documents.  If None, it defaults to
 # "<project> v<release> documentation".
@@ -688,3 +731,17 @@ intersphinx_mapping = {
     'pexpect': ('http://pexpect.readthedocs.org/en/latest/', None),
 }
 
+rst_epilog = """
+.. |package| image:: /_static/package.svg
+    :width: 26pt
+
+.. |module| image:: /_static/module.svg
+    :width: 26pt
+
+.. |inherit| image:: /_static/inheritance.svg
+    :width: 26pt
+
+.. role:: strike
+    :class: strike
+
+"""
