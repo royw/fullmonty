@@ -7,6 +7,7 @@ Add the following to your *requirements.txt* file:
 * ordereddict; python_version < '3.1'
 
 """
+import collections
 
 __docformat__ = 'restructuredtext en'
 
@@ -58,3 +59,18 @@ def is_sequence(item):
     """
     return (not hasattr(item, "strip") and
             (hasattr(item, "__getitem__") or hasattr(item, "__iter__")))
+
+
+# noinspection PyShadowingBuiltins
+def flatten(l):
+    try:
+        basestring = basestring
+    except NameError:
+        basestring = (str, bytes)
+
+    for el in l:
+        if isinstance(el, collections.Iterable) and not isinstance(el, basestring):
+            for sub in flatten(el):
+                yield sub
+        else:
+            yield el
