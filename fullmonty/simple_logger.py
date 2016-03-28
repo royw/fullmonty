@@ -120,7 +120,7 @@ class SimpleLogger(object):
          :type verbose: bool
         """
         if verbose:
-            self.log_outputter['info'] = [sys.stdout]
+            self.log_outputter['info'] = [self.out_stream]
         else:
             self.log_outputter['info'] = []
 
@@ -132,8 +132,8 @@ class SimpleLogger(object):
         :type enable_debug: bool
         """
         if enable_debug:
-            self.log_outputter['debug'] = [sys.stdout]
-            self.log_outputter['info'] = [sys.stdout]
+            self.log_outputter['debug'] = [self.out_stream]
+            self.log_outputter['info'] = [self.out_stream]
         else:
             self.log_outputter['debug'] = []
 
