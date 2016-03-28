@@ -70,3 +70,5 @@ fullmonty/fullmonty_app.py
 fullmonty/fullmonty_cli.py
 fullmonty/fullmonty_main.py
 fullmonty/fullmonty_settings.py
+
+quality/
