@@ -8,12 +8,13 @@ method missing behavior.  While Bar is our class with new behavior where we over
 method_missing methods.
 """
 import collections
-from meta.method_missing_hook import MethodMissingHook
+from fullmonty.method_missing_hook import MethodMissingHook
 
 __docformat__ = 'restructuredtext en'
 __author__ = 'wrighroy'
 
 
+# noinspection PyMethodMayBeStatic
 class Foo(MethodMissingHook):
     """
     Foo class does not implement method_missing method and is our test control to make sure we don't break anything.
@@ -27,6 +28,7 @@ class Foo(MethodMissingHook):
         return 'Ride to Live'
 
 
+# noinspection PyMethodMayBeStatic
 class Bar(MethodMissingHook):
     """Bar class overrides method_missing and class_method_missing methods."""
     WILLIEG = 'Davidson'
@@ -49,6 +51,7 @@ class Bar(MethodMissingHook):
         return cls.method_as_string(name, *argv, **kwargs)
 
 
+# noinspection PyMethodMayBeStatic
 class TestClass(object):
     def test_attribute_accessor(self):
         """make sure didn't break attribute accessors"""
