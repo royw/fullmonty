@@ -19,7 +19,6 @@ try:
         # noinspection PyUnresolvedReferences
         from collections import OrderedDict
 
-
     def unique_list(src_list):
         """
         returns a new list without any duplicates
@@ -64,6 +63,7 @@ def is_sequence(item):
 # noinspection PyShadowingBuiltins
 def flatten(l):
     try:
+        # noinspection PyUnboundLocalVariable
         basestring = basestring
     except NameError:
         basestring = (str, bytes)
