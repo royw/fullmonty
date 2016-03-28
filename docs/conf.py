@@ -724,7 +724,7 @@ intersphinx_mapping = {
     'http://docs.python.org/': None,
     'python27': ('http://docs.python.org/2.7', None),
     'python34': ('https://docs.python.org/3.4', None),
-    'FullMonty': ('royw.github.io/fullmonty', None),
+    'FullMonty': ('https://royw.github.io/fullmonty', None),
     'six': ('http://pythonhosted.org/six/', None),
     'dateutil': ('https://dateutil.readthedocs.org/en/latest/', None),
     'matplotlib': ('http://matplotlib.org/', None),
