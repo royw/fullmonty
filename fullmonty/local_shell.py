@@ -107,7 +107,7 @@ class LocalShell(AShell):
 
     def run(self, cmd_args, out_stream=sys.stdout, env=None, verbose=False,
             prefix=None, postfix=None, accept_defaults=False, pattern_response=None,
-            timeout=0, timeout_interval=1, debug=False):
+            timeout=0, timeout_interval=1, debug=False, raise_on_interrupt=False):
         """
         Runs the command and returns the output, writing each the output to out_stream if verbose is True.
 
@@ -134,6 +134,8 @@ class LocalShell(AShell):
         :type timeout_interval: int
         :param debug: emit debugging info
         :type debug: bool
+        :param raise_on_interrupt: on keyboard interrupt, raise the KeyboardInterrupt exception
+        :type raise_on_interrupt: bool
 
         :returns: the output of the command
         :rtype: str
@@ -152,12 +154,14 @@ class LocalShell(AShell):
         lines = []
         for line in self.run_generator(cmd_args, out_stream=out_stream, env=env, verbose=verbose,
                                        prefix=prefix, postfix=postfix,
-                                       timeout=timeout, timeout_interval=timeout_interval, debug=debug):
+                                       timeout=timeout, timeout_interval=timeout_interval,
+                                       debug=debug, raise_on_interrupt=raise_on_interrupt):
             lines.append(line)
         return ''.join(lines)
 
     def run_generator(self, cmd_args, out_stream=sys.stdout, env=None, verbose=True,
-                      prefix=None, postfix=None, timeout=0, timeout_interval=1, debug=False):
+                      prefix=None, postfix=None, timeout=0, timeout_interval=1, debug=False,
+                      raise_on_interrupt=False):
         """
         Runs the command and yields on each line of output, writing each the output to out_stream if verbose is True.
 
@@ -177,6 +181,8 @@ class LocalShell(AShell):
         :type timeout_interval: int
         :param debug: debug log messages
         :type debug: bool
+        :param raise_on_interrupt: on keyboard interrupt, raise the KeyboardInterrupt exception
+        :type raise_on_interrupt: bool
         """
         self.display("run_generator(%s, %s)\n\n" % (cmd_args, env), out_stream=out_stream, verbose=debug)
         args = self.expand_args(cmd_args, prefix=prefix, postfix=postfix)
@@ -185,12 +191,13 @@ class LocalShell(AShell):
         self.display("{line}\n\n".format(line=command_line), out_stream=out_stream, verbose=verbose)
 
         for line in self.run_process(args, env=env, out_stream=out_stream, verbose=debug,
-                                     timeout=timeout, timeout_interval=timeout_interval):
+                                     timeout=timeout, timeout_interval=timeout_interval,
+                                     raise_on_interrupt=raise_on_interrupt):
             self.display(line, out_stream=out_stream, verbose=verbose)
             yield line
 
     def run_process(self, cmd_args, env=None, out_stream=sys.stdout, verbose=True,
-                    timeout=0, timeout_interval=1):
+                    timeout=0, timeout_interval=1, raise_on_interrupt=False):
         """
         Run the process yield for each output line from the process.
 
@@ -205,6 +212,8 @@ class LocalShell(AShell):
         :type timeout: int
         :param timeout_interval: sleep period in seconds between output polling
         :type timeout_interval: int
+        :param raise_on_interrupt: on keyboard interrupt, raise the KeyboardInterrupt exception
+        :type raise_on_interrupt: bool
         """
         self.display("run_process(%s, %s)\n\n" % (cmd_args, env), out_stream=out_stream, verbose=verbose)
         sub_env = os.environ.copy()
@@ -239,6 +248,8 @@ class LocalShell(AShell):
             line = self._non_block_read(process.stdout)
             if line:
                 yield line
+            if handler.interrupted and raise_on_interrupt:
+                raise KeyboardInterrupt()
 
     # noinspection PyMethodMayBeStatic
     def _non_block_read(self, output):
