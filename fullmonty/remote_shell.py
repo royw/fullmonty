@@ -23,7 +23,7 @@ from getpass import getpass
 import pexpect
 import paramiko
 from paramiko import SSHClient
-from pexpect import pxssh
+from pexpect.pxssh import pxssh
 from scp import SCPClient
 
 try:
