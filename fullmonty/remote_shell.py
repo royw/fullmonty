@@ -252,10 +252,11 @@ class RemoteShell(AShell):
         """
         if local_path is None:
             local_path = remote_path
-        self.display("scp '{src}' '{dest}'".format(src=remote_path, dest=local_path),
+        self.display("scp '{src}' '{dest}'\n".format(src=remote_path, dest=local_path),
                      out_stream=out_stream, verbose=verbose)
 
-        names = self.run(['ls', '-1', remote_path]).split('\n')
+        names = [name.strip() for name in self.run(['ls', '-1', remote_path]).split('\r\n')[1:] if name.strip() != '[PEXPECT]$']
+        self.display("names: {names}".format(names=repr(names)))
 
         ssh = SSHClient()
         ssh.load_system_host_keys()
@@ -266,7 +267,7 @@ class RemoteShell(AShell):
 
         ftp = ssh.open_sftp()
         for name in names:
-            print(name)
+            self.display(name + '\n')
             ftp.get(name, local_path)
 
         output = repr(names)

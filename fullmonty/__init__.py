@@ -48,4 +48,4 @@ To install from PyPI:
 """
 __docformat__ = 'restructuredtext en'
 
-__version__ = '0.0.15'
+__version__ = '0.0.16'
