@@ -61,14 +61,17 @@ class RemoteShell(AShell):
             raise AttributeError("You must provide a non-empty string for 'user'")
         if not host:
             raise AttributeError("You must provide a non-empty string for 'host'")
-        if not password:
-            password = getpass('password for {user}@{host}: '.format(user=user, host=host))
         self.user = user
         self.password = password
         self.address = host
         self.port = 22
         self.ssh = pxssh(timeout=1200)
-        self.ssh.login(host, user, password)
+        try:
+            self.ssh.login(host, user)
+        except:
+            if not password:
+                password = getpass('password for {user}@{host}: '.format(user=user, host=host))
+            self.ssh.login(host, user, password)
         self.accept_defaults = False
         self.logfile = logfile
         self.prefix = None
