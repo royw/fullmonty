@@ -65,12 +65,13 @@ class RemoteShell(AShell):
         self.password = password
         self.address = host
         self.port = 22
-        self.ssh = pxssh(timeout=1200)
         try:
+            self.ssh = pxssh(timeout=1200)
             self.ssh.login(host, user)
         except:
             if not password:
                 password = getpass('password for {user}@{host}: '.format(user=user, host=host))
+            self.ssh = pxssh(timeout=1200)
             self.ssh.login(host, user, password)
         self.accept_defaults = False
         self.logfile = logfile
