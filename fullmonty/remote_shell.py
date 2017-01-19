@@ -55,7 +55,7 @@ class RemoteShell(AShell):
     :type verbose:
     """
 
-    def __init__(self, user, password, host, logfile=None, verbose=False):
+    def __init__(self, user, password, host, logfile=None, verbose=False, password_callback=None):
         super(RemoteShell, self).__init__(is_remote=True, verbose=verbose)
         if not user:
             raise AttributeError("You must provide a non-empty string for 'user'")
@@ -71,6 +71,8 @@ class RemoteShell(AShell):
         except:
             if not password:
                 password = getpass('password for {user}@{host}: '.format(user=user, host=host))
+                if password_callback is not None and callable(password_callback):
+                    password_callback(password)
             self.ssh = pxssh(timeout=1200)
             self.ssh.login(host, user, password)
         self.accept_defaults = False
