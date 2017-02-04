@@ -296,7 +296,7 @@ extlinks = {
     #   The :bugzilla:`12345` should be a link with the link caption "bug 12345".
     #   The :bugzilla:`very important bug <12345>` should be a link with the link caption "very important bug".
 
-    'bugzilla': ('https://bugzilla.austin.hp.com/show_bug.cgi?id=%s',
+    'bugzilla': ('https://bugzilla.example.com/show_bug.cgi?id=%s',
                  'bug '),
 }
 
