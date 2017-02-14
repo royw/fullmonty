@@ -261,7 +261,7 @@ class RemoteShell(AShell):
         self.display("scp '{src}' '{dest}'\n".format(src=remote_path, dest=local_path),
                      out_stream=out_stream, verbose=verbose)
 
-        names = [name.strip() for name in self.run(['ls', '-1', remote_path]).split('\r\n')[1:] if name.strip() != '[PEXPECT]$']
+        names = [name.strip() for name in self.run(['/bin/ls', '-1', '--color=never', remote_path]).split('\r\n')[1:] if name.strip() != '[PEXPECT]$']
         self.display("names: {names}".format(names=repr(names)))
 
         ssh = SSHClient()
