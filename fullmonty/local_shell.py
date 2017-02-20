@@ -103,6 +103,7 @@ class LocalShell(AShell):
                     break
         except pexpect.ExceptionPexpect as ex:
             self.display(str(ex) + '\n', out_stream=out_stream, verbose=verbose)
+            raise ex
         return ''.join(output).split("\n")
 
     def run(self, cmd_args, out_stream=sys.stdout, env=None, verbose=False,
