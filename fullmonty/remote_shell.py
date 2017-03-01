@@ -23,7 +23,12 @@ from getpass import getpass
 import pexpect
 import paramiko
 from paramiko import SSHClient
-from pexpect.pxssh import pxssh
+
+try:
+    from pexpect.pxssh import pxssh
+except ImportError:
+    from pexpect import pxssh
+
 from scp import SCPClient
 
 try:

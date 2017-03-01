@@ -57,6 +57,7 @@ def get_project_version():
 # all versions of python
 required_imports = [
     'six',
+    'pycrypto',
 ]
 
 # libraries that have been moved into python
