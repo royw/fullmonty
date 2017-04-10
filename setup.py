@@ -58,6 +58,7 @@ def get_project_version():
 required_imports = [
     'six',
     'pycrypto',
+    'pexpect',
 ]
 
 # libraries that have been moved into python
