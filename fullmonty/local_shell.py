@@ -141,7 +141,7 @@ class LocalShell(AShell):
         :returns: the output of the command
         :rtype: str
         """
-        if isinstance(cmd_args, str):
+        if isinstance(cmd_args, basestring):
             cmd_args = pexpect.split_command_line(cmd_args)
 
         self.display("run(%s, %s)\n\n" % (cmd_args, env), out_stream=out_stream, verbose=debug)
