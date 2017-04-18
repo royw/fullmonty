@@ -72,6 +72,9 @@ Project.metadata(
         # 'dist_user': 'builder',
         # 'dist_password': 'my_seKret'
 
+        # When uploading to a pypyserver, the alias in the ~/.pypirc file to use.
+        'pypiserver': 'tpas',
+
         # currently there is only one way to upload documents and that is by using ssh/scp
         # so you need to define the 'docs_*' options.  Note if you do not
         # define the 'docs_password' option, you will be prompted for the password.
