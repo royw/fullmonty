@@ -248,9 +248,12 @@ class ApplicationSettings(object):
         """
         return None
 
-    def __enter__(self):
+    def __enter__(self, early_validate=False):
         """
         context manager enter
+        
+        :param early_validate: asserted if you want cli validation before longhelp and version handling
+        :type early_validate: bool
         :return: the settings namespace
         :rtype: argparse.Namespace
         """
@@ -258,6 +261,11 @@ class ApplicationSettings(object):
 
         # Logger.set_verbose(not self._settings.quiet)
         # Logger.set_debug(self._settings.debug)
+
+        if early_validate:
+            error_message = self._cli_validate(self._settings, self._remaining_argv)
+            if error_message is not None:
+                self._parser.error("\n" + error_message)
 
         if self._settings.longhelp:
             app_module = importlib.import_module(self.__app_package)
@@ -268,9 +276,10 @@ class ApplicationSettings(object):
             info("Version %s" % self._load_version())
             exit(0)
 
-        error_message = self._cli_validate(self._settings, self._remaining_argv)
-        if error_message is not None:
-            self._parser.error("\n" + error_message)
+        if not early_validate:
+            error_message = self._cli_validate(self._settings, self._remaining_argv)
+            if error_message is not None:
+                self._parser.error("\n" + error_message)
 
         self._settings.parser = self._parser
         return self._settings
