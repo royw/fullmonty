@@ -56,6 +56,7 @@ class SimpleLogger(object):
         self.enable_elapsed_time = False
         self.last_message_time = time()
         self.trace_level = 'error'
+        self.verbosity = 2
         self.log_outputter = {
             'debug': [],
             'info': [out_stream],
@@ -79,6 +80,8 @@ class SimpleLogger(object):
         Set the verbosity levels.
         :param level: 0-3, 0 being least verbose, 3 being most verbose.
         """
+        self.verbosity = level
+
         if level == 0:
             self.log_outputter = {
                 'debug': [],
@@ -121,8 +124,12 @@ class SimpleLogger(object):
         """
         if verbose:
             self.log_outputter['info'] = [self.out_stream]
+            if self.verbosity < 2:
+                self.verbosity = 2
         else:
             self.log_outputter['info'] = []
+            if self.verbosity == 2:
+                self.verbosity = 1
 
     def set_debug(self, enable_debug=True):
         """
@@ -134,8 +141,14 @@ class SimpleLogger(object):
         if enable_debug:
             self.log_outputter['debug'] = [self.out_stream]
             self.log_outputter['info'] = [self.out_stream]
+            self.verbosity = 3
         else:
             self.log_outputter['debug'] = []
+            if self.verbosity > 3:
+                self.verbosity = 2
+
+    def is_debug(self):
+        return self.verbosity >= 3
 
     def set_component(self, component=None):
         """
