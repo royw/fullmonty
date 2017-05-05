@@ -1,15 +1,20 @@
+# coding=utf-8
 # from distutils.core import setup
 import os
 import re
 from setuptools import setup
 
 import sys
+import json
 
+# Old style (not recommended) check to prevent setup.py from being used on old pythons.
+# Current recommended practice is to include supported pythons in the
+# classifiers kwarg even though there is no automated enforcement.
 if sys.version_info < (2, 6):
     print('FullMonty requires python 2.6 or newer')
     exit(-1)
 
-
+#: str: Regular expression for parsing __version__ line in the packages __init__.py file.
 VERSION_REGEX = r'__version__\s*=\s*[\'\"](\S+)[\'\"]'
 
 
@@ -29,12 +34,15 @@ def get_project_version():
         file_name = os.path.join(os.getcwd(), 'fullmonty', '__init__.py')
         # noinspection PyBroadException
         try:
+            # python3
+            # noinspection PyArgumentList
             with open(file_name, 'r', encoding='utf-8') as inFile:
                 for line in inFile.readlines():
                     match = re.match(VERSION_REGEX, line)
                     if match:
                         return match.group(1)
         except:
+            # python2
             with open(file_name, 'r') as inFile:
                 for line in inFile.readlines():
                     match = re.match(VERSION_REGEX, line)
@@ -44,25 +52,28 @@ def get_project_version():
         pass
 
     # no joy, so try getting the version from a VERSION.txt file.
-    try:
-        file_name = os.path.join(os.getcwd(), 'fullmonty', 'VERSION.txt')
-        with open(file_name, 'r') as inFile:
-            return inFile.read().strip()
-    except IOError:
-        pass
+    #    try:
+    #        file_name = os.path.join(os.getcwd(), 'cr', 'VERSION.txt')
+    #        with open(file_name, 'r') as inFile:
+    #            return inFile.read().strip()
+    #    except IOError:
+    #        pass
 
     # no joy again, so return default
     return '0.0.0'
 
-# all versions of python
+#: List[str]: The list of the package names for runtime dependencies
 required_imports = [
     'six',
     'pycrypto',
     'pexpect',
 ]
 
-# libraries that have been moved into python
 print("Python (%s)" % sys.version)
+
+# libraries that have been moved into python are added to the list of runtime
+# dependencies by python version.
+
 if sys.version_info < (3, 1):
     required_imports.extend([
         'ordereddict',  # new in py31
@@ -75,33 +86,69 @@ if sys.version_info < (3, 2):
         "configparser",  # back port from py32
     ])
 
-setup(
-    name='FullMonty',
-    version=get_project_version(),
-    author='Roy Wright',
-    author_email='roy@wright.org',
-    url='http://fullmonty.example.com',
-    packages=['fullmonty'],
-    package_dir={'': '.'},
-    package_data={'fullmonty': ['*.txt', '*.js', '*.html', '*.css'],
-                  'tests': ['*'],
-                  '': ['*.rst', '*.txt', '*.rc', '*.in']},
-    license='license.txt',
-    description='Eclectic library for applications.',
-    long_description=open('README.rst').read(),
+if sys.version_info < (3, 5):
+    required_imports.extend([
+        # "scandir",  # new in py35
+    ])
+
+#: str: the CLI templates support two descriptions, one brief and one long.
+long_description = ""
+
+# here we set the long_description to the contents of the README.rst file.
+# noinspection PyBroadException
+try:
+    long_description = open('README.rst').read()
+except:
+    # noinspection PyArgumentList
+    long_description = open('README.rst', encoding='utf-8').read()
+
+kwargs = {}
+if os.path.isfile('setup.json'):
+    try:
+        with open('setup.json') as data_file:
+            kwargs = json.load(data_file)
+    except Exception as ex:
+        print("Unable to load setup.json - %s" % str(ex))
+
+default_kwargs = {
+    'name': 'FullMonty',
+    'version': get_project_version(),
+    'author': 'Roy Wright',
+    'author_email': 'roy@wright.org',
+    'url': 'http://fullmonty.example.com',
+    'packages': ['fullmonty'],
+    'package_dir': {'': '.'},
+    'package_data': {'fullmonty': ['*.txt', '*.js', '*.html', '*.css'],
+                     'tests': ['*'],
+                     '': ['*.rst', '*.txt', '*.rc', '*.in']},
+    'license': 'docs/license.rst',
+    'description': 'Eclectic library for applications.',
+    'long_description': long_description,
     # use keywords relevant to the application
-    keywords=[],
+    'keywords': [],
     # use classifiers from:  https://pypi.python.org/pypi?%3Aaction=list_classifiers
-    classifiers=[
+    'classifiers': [
+        # 'Development Status :: 1 - Planning',
+        # 'Development Status :: 2 - Pre-Alpha',
+        # 'Development Status :: 3 - Alpha',
+        # 'Development Status :: 4 - Beta',
         'Development Status :: 5 - Production/Stable',
+        # 'Development Status :: 6 - Mature',
+        # 'Development Status :: 7 - Inactive',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Natural Language :: English',
         'Operating System :: OS Independent',
-        'Programming Language :: Python',
+        # 'Operating System :: POSIX :: Linux',
+        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.5',
         'Topic :: Software Development',
     ],
-    install_requires=required_imports,
-    entry_points={
+    'install_requires': required_imports,
+    'entry_points': {
         'console_scripts': ['fullmonty = fullmonty.fullmonty_main:main']
-    })
+    }
+}
+
+default_kwargs.update(kwargs)
+setup(**default_kwargs)
