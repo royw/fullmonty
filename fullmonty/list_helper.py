@@ -66,7 +66,7 @@ def flatten(l):
         # noinspection PyUnboundLocalVariable
         basestring = basestring
     except NameError:
-        basestring = (str, bytes)
+        basestring = (str, unicode)
 
     for el in l:
         if isinstance(el, collections.Iterable) and not isinstance(el, basestring):

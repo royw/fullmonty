@@ -3,7 +3,9 @@
 """
 test the list helper functions
 """
-from fullmonty.list_helper import compress_list, unique_list, is_sequence
+import collections
+
+from fullmonty.list_helper import compress_list, unique_list, is_sequence, flatten
 
 
 def test_compress_list():
@@ -71,3 +73,23 @@ def test_is_sequence():
     assert is_sequence(())
     assert is_sequence((1,))
     assert is_sequence((1, 2))
+
+
+def test_flatten():
+
+    assert isinstance(flatten([1]), collections.Iterable)
+    assert isinstance(flatten([1, 2, 3]), collections.Iterable)
+    assert isinstance(flatten([1, [2, 3]]), collections.Iterable)
+    assert isinstance(flatten(["1"]), collections.Iterable)
+    assert isinstance(flatten(["1", "2", "3"]), collections.Iterable)
+    assert isinstance(flatten(["1", ["2", "3"]]), collections.Iterable)
+    assert isinstance(flatten([u"1"]), collections.Iterable)
+    assert isinstance(flatten([u"1", u"2", u"3"]), collections.Iterable)
+    assert isinstance(flatten([u"1", [u"2", u"3"]]), collections.Iterable)
+    assert isinstance(flatten([b"1"]), collections.Iterable)
+    assert isinstance(flatten([b"1", b"2", b"3"]), collections.Iterable)
+    assert isinstance(flatten([b"1", [b"2", b"3"]]), collections.Iterable)
+    assert list(flatten([[b'user']])) == [b'user']
+    assert list(flatten([[u'pass']])) == [u'pass']
+    assert list(flatten([b'lab'])) == [b'lab']
+    assert list(flatten([u'lab'])) == [u'lab']
