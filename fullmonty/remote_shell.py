@@ -27,7 +27,10 @@ from paramiko import SSHClient
 try:
     from pexpect.pxssh import pxssh
 except ImportError:
-    from pexpect import pxssh
+    try:
+        from pexpect import pxssh
+    except ImportError:
+        import pxssh
 
 from scp import SCPClient
 
