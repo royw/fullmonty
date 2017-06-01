@@ -14,7 +14,6 @@ Usage
         remote.get(remote_file)
 
 """
-
 import sys
 import re
 from time import sleep
@@ -30,8 +29,10 @@ except ImportError:
     try:
         from pexpect import pxssh
     except ImportError:
+        # noinspection PyUnresolvedReferences
         import pxssh
 
+# from pexpect.pxssh import ExceptionPxssh
 from scp import SCPClient
 
 try:
@@ -73,7 +74,9 @@ class RemoteShell(AShell):
         self.password = password
         self.address = host
         self.port = 22
+        # noinspection PyBroadException
         try:
+            # noinspection PyCallingNonCallable
             self.ssh = pxssh(timeout=1200)
             self.ssh.login(host, user)
         except:
@@ -81,7 +84,8 @@ class RemoteShell(AShell):
                 password = getpass('password for {user}@{host}: '.format(user=user, host=host))
                 if password_callback is not None and callable(password_callback):
                     password_callback(password)
-            self.ssh = pxssh(timeout=1200)
+            # noinspection PyCallingNonCallable
+            self.ssh = pxssh.pxssh(timeout=1200)
             self.ssh.login(host, user, password)
         self.accept_defaults = False
         self.logfile = logfile
@@ -107,6 +111,7 @@ class RemoteShell(AShell):
                 if isinstance(value, str):
                     self.display(value, out_stream=out_stream, verbose=verbose)
                     output.append(value)
+
         _out_string(self.ssh.before)
         _out_string(self.ssh.after)
 
@@ -149,7 +154,7 @@ class RemoteShell(AShell):
 
         output = []
 
-        self.ssh.prompt(timeout=0.1)     # clear out any pending prompts
+        self.ssh.prompt(timeout=0.1)  # clear out any pending prompts
         self._report(output, out_stream=out_stream, verbose=verbose)
         self.ssh.sendline(command_line)
         while True:
@@ -222,7 +227,7 @@ class RemoteShell(AShell):
         args = self.expand_args(cmd_args, prefix=prefix, postfix=postfix)
         command_line = ' '.join(args)
         self.display("{line}\n".format(line=command_line), out_stream=out_stream, verbose=verbose)
-        self.ssh.prompt(timeout=.1)     # clear out any pending prompts
+        self.ssh.prompt(timeout=.1)  # clear out any pending prompts
         self.ssh.sendline(command_line)
         self.ssh.prompt(timeout=timeout)
         buf = [self.ssh.before]
@@ -269,7 +274,8 @@ class RemoteShell(AShell):
         self.display("scp '{src}' '{dest}'\n".format(src=remote_path, dest=local_path),
                      out_stream=out_stream, verbose=verbose)
 
-        names = [name.strip() for name in self.run(['/bin/ls', '-1', '--color=never', remote_path]).split('\r\n')[1:] if name.strip() != '[PEXPECT]$']
+        names = [name.strip() for name in self.run(['/bin/ls', '-1', '--color=never', remote_path]).split('\r\n')[1:] if
+                 name.strip() != '[PEXPECT]$']
         self.display("names: {names}".format(names=repr(names)))
 
         ssh = SSHClient()

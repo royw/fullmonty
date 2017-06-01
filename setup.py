@@ -97,10 +97,14 @@ long_description = ""
 # here we set the long_description to the contents of the README.rst file.
 # noinspection PyBroadException
 try:
-    long_description = open('README.rst').read()
+    # noinspection PyBroadException
+    try:
+        long_description = open('README.rst').read()
+    except:
+        # noinspection PyArgumentList
+        long_description = open('README.rst', encoding='utf-8').read()
 except:
-    # noinspection PyArgumentList
-    long_description = open('README.rst', encoding='utf-8').read()
+    pass
 
 kwargs = {}
 if os.path.isfile('setup.json'):
