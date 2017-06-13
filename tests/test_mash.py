@@ -3,6 +3,9 @@
 """
 Test Mash
 """
+import unittest
+from argparse import Namespace
+
 from fullmonty.mash import Mash
 
 __docformat__ = 'restructuredtext en'
@@ -10,7 +13,7 @@ __author__ = 'wrighroy'
 
 
 # noinspection PyMethodMayBeStatic
-class TestMash(object):
+class TestMash(unittest.TestCase):
     """
     Test the Mash class
     """
@@ -108,3 +111,41 @@ class TestMash(object):
         assert a[1] == 'foo'
         assert a['a*b'] == 'bar'
         assert a['c.d'] == 'fig'
+
+    def test_constructors(self):
+        data = {'a': 1, 'b': 2}
+        namespace = Namespace(**data)
+
+        assert Mash(data)
+        assert Mash(namespace)
+        self.assertDictEqual(Mash(data), data)
+        self.assertDictEqual(Mash(namespace), data)
+
+    def test_eq(self):
+        data = {'a': 1, 'b': 2}
+        namespace = Namespace(**data)
+        mash = Mash(namespace)
+        self.assertDictEqual(mash, data)
+        self.assertEqual(mash, Mash(data))
+        self.assertEqual(mash, namespace)
+
+
+    def test_comparisons(self):
+        data = {'a': 1, 'b': 2}
+        namespace = Namespace(**data)
+
+        # mash(data) vs data
+        self.assertDictEqual(data, Mash(data))
+        self.assertDictEqual(Mash(data), data)
+
+        # mash(namespace) vs namespace
+        # self.assertEqual(Mash(namespace), namespace)
+        # self.assertEqual(namespace, Mash(namespace))
+
+        # mash(namespace) vs data
+        self.assertDictEqual(Mash(namespace), data)
+        self.assertDictEqual(data, Mash(namespace))
+
+        # mash(data) vs namespace
+        # self.assertEqual(Mash(data), namespace)
+        # self.assertEqual(namespace, Mash(data))

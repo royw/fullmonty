@@ -23,8 +23,9 @@ For example:
 """
 import collections
 
-__docformat__ = 'restructuredtext en'
+from argparse import Namespace
 
+__docformat__ = 'restructuredtext en'
 
 class Mash(dict):
     """
@@ -32,6 +33,19 @@ class Mash(dict):
 
     Inherits dict behavior so we just extend by adding attribute accessing.
     """
+
+    def __init__(self, obj=None):
+        if obj is None:
+            super(Mash, self).__init__(dict())
+        elif isinstance(obj, collections.Mapping):
+            super(Mash, self).__init__(obj)
+        elif isinstance(obj, dict):
+            super(Mash, self).__init__(obj)
+        elif isinstance(obj, Namespace):
+            super(Mash, self).__init__(vars(obj))
+        elif isinstance(obj, Mash):
+            super(Mash, self).__init__(vars(obj))
+
     def __getattr__(self, key):
         """
         Support self.key read access
@@ -81,3 +95,20 @@ class Mash(dict):
         # noinspection PyTypeChecker
         del self[key]
         return self
+
+    def __eq__(self, other):
+        print('{src}.__eq__({other})'.format(src=repr(self), other=repr(other)))
+        if other is None:
+            return vars(self) == {}
+        elif isinstance(other, collections.Mapping):
+            return vars(self) == other
+        elif isinstance(other, dict):
+            return vars(self) == other
+        elif isinstance(other, Namespace):
+            return vars(self) == vars(other)
+        elif isinstance(other, Mash):
+            return vars(self) == other
+        else:
+            return vars(self) == vars(other)
+
+Namespace.__eq__ = Mash.__eq__
