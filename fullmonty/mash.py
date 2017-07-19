@@ -97,18 +97,25 @@ class Mash(dict):
         return self
 
     def __eq__(self, other):
-        print('{src}.__eq__({other})'.format(src=repr(self), other=repr(other)))
+        # print('{src}.__eq__({other})'.format(src=repr(self), other=repr(other)))
         if other is None:
+            # print("if other is None:")
             return vars(self) == {}
+        elif isinstance(other, Mash):
+            # print("elif isinstance(other, Mash):")
+            return vars(self) == vars(other)
         elif isinstance(other, collections.Mapping):
+            # print("elif isinstance(other, collections.Mapping):")
             return vars(self) == other
         elif isinstance(other, dict):
+            # print("elif isinstance(other, dict):")
             return vars(self) == other
         elif isinstance(other, Namespace):
+            # print("elif isinstance(other, Namespace):")
             return vars(self) == vars(other)
-        elif isinstance(other, Mash):
-            return vars(self) == other
         else:
+            # print("else:")
             return vars(self) == vars(other)
+
 
 Namespace.__eq__ = Mash.__eq__

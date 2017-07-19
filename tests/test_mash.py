@@ -7,6 +7,7 @@ import unittest
 from argparse import Namespace
 
 from fullmonty.mash import Mash
+from fullmonty.simple_logger import info
 
 __docformat__ = 'restructuredtext en'
 __author__ = 'wrighroy'
@@ -113,7 +114,7 @@ class TestMash(unittest.TestCase):
         assert a['c.d'] == 'fig'
 
     def test_constructors(self):
-        data = {'a': 1, 'b': 2}
+        data = {'e': 5, 'f': 6}
         namespace = Namespace(**data)
 
         assert Mash(data)
@@ -125,13 +126,16 @@ class TestMash(unittest.TestCase):
         data = {'a': 1, 'b': 2}
         namespace = Namespace(**data)
         mash = Mash(namespace)
-        self.assertDictEqual(mash, data)
-        self.assertEqual(mash, Mash(data))
-        self.assertEqual(mash, namespace)
-
+        mash2 = Mash(data)
+        # info("data: " + repr(data))
+        # info("mash: " + repr(mash))
+        # info("mash2: " + repr(mash2))
+        self.assertDictEqual(mash, data, "mash.__dict__ == data")
+        self.assertEqual(mash, mash2, "mash.__eq__(mash2)")
+        self.assertDictEqual(mash, namespace.__dict__, "mash.__dict__ == namespace.__dict__")
 
     def test_comparisons(self):
-        data = {'a': 1, 'b': 2}
+        data = {'c': 3, 'd': 4}
         namespace = Namespace(**data)
 
         # mash(data) vs data
@@ -139,13 +143,13 @@ class TestMash(unittest.TestCase):
         self.assertDictEqual(Mash(data), data)
 
         # mash(namespace) vs namespace
-        # self.assertEqual(Mash(namespace), namespace)
-        # self.assertEqual(namespace, Mash(namespace))
+        self.assertDictEqual(Mash(namespace), namespace.__dict__)
+        self.assertDictEqual(namespace.__dict__, Mash(namespace))
 
         # mash(namespace) vs data
         self.assertDictEqual(Mash(namespace), data)
         self.assertDictEqual(data, Mash(namespace))
 
         # mash(data) vs namespace
-        # self.assertEqual(Mash(data), namespace)
-        # self.assertEqual(namespace, Mash(data))
+        self.assertDictEqual(Mash(data), namespace.__dict__)
+        self.assertDictEqual(namespace.__dict__, Mash(data))
