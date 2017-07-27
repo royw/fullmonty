@@ -14,10 +14,13 @@ Usage
         remote.get(remote_file)
 
 """
+import json
+import os
+import stat
 import sys
 import re
 from time import sleep
-from getpass import getpass
+from getpass import getpass, getuser
 
 import pexpect
 import paramiko
@@ -64,12 +67,17 @@ class RemoteShell(AShell):
     :type verbose:
     """
 
-    def __init__(self, user, password, host, logfile=None, verbose=False, password_callback=None):
+    def __init__(self, host, user=None, password=None, logfile=None, verbose=False, password_callback=None):
         super(RemoteShell, self).__init__(is_remote=True, verbose=verbose)
-        if not user:
-            raise AttributeError("You must provide a non-empty string for 'user'")
-        if not host:
+        self.creds_file = os.path.expanduser('~/.remote_shell_rc')
+        if host is None or not host:
             raise AttributeError("You must provide a non-empty string for 'host'")
+        if user is None:
+            user = self.getUser(host)
+        if user is None or not user:
+            raise AttributeError("You must provide a non-empty string for 'user'")
+        if password is None:
+            password = self.getPassword(host, user)
         self.user = user
         self.password = password
         self.address = host
@@ -85,7 +93,7 @@ class RemoteShell(AShell):
                 if password_callback is not None and callable(password_callback):
                     password_callback(password)
             # noinspection PyCallingNonCallable
-            self.ssh = pxssh.pxssh(timeout=1200)
+            self.ssh = pxssh(timeout=1200)
             self.ssh.login(host, user, password)
         self.accept_defaults = False
         self.logfile = logfile
@@ -309,3 +317,50 @@ class RemoteShell(AShell):
         if self.ssh:
             self.ssh.logout()
             self.ssh = None
+
+    def getUserFromCredsFile(self, host):
+        # noinspection PyArgumentEqualDefault
+        with open(self.creds_file, 'r') as creds_file:
+            creds_dict = json.loads(creds_file.read())
+            if host in creds_dict:
+                if 'user' in creds_dict[host]:
+                    return creds_dict[host]['user']['name']
+
+    def getPasswordFromCredsFile(self, host, user):
+        # noinspection PyArgumentEqualDefault
+        with open(self.creds_file, 'r') as creds_file:
+            creds_dict = json.loads(creds_file.read())
+            if host in creds_dict:
+                if 'user' in creds_dict[host]:
+                    if creds_dict[host]['user'] == user:
+                        return creds_dict[host]['password']
+
+    def getUser(self, host):
+        user = self.getUserFromCredsFile(host)
+        if user is None or not user:
+            user = getuser()
+        return user
+
+    def getPassword(self, host, user):
+        password = self.getPasswordFromCredsFile(host, user)
+        if password is None or not password:
+            password = getpass('password for {user}@{host}: '.format(user=user, host=host))
+            self.saveUserPasswordToCredsFile(host, user, password)
+        return password
+
+    def saveUserPasswordToCredsFile(self, host, user, password):
+        creds_dict = {}
+        # noinspection PyBroadException
+        try:
+            # noinspection PyArgumentEqualDefault
+            with open(self.creds_file, 'r') as creds_file:
+                creds_dict = json.loads(creds_file.read())
+        except:
+            pass
+        creds_dict[host]['user'] = user
+        creds_dict[host]['password'] = password
+        mode = os.stat(self.creds_file).st_mode
+        os.chmod(self.creds_file, mode | stat.S_IWUSR | stat.S_IWRITE)
+        with open(self.creds_file, 'w') as out_file:
+            json.dump(creds_dict, out_file)
+        os.chmod(self.creds_file, mode)
