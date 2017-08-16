@@ -26,6 +26,7 @@ import pexpect
 import paramiko
 from paramiko import SSHClient
 
+from fullmonty.touch import touch
 from fullmonty.simple_logger import debug
 
 try:
@@ -373,8 +374,16 @@ class RemoteShell(AShell):
         try:
             mode = os.stat(self.creds_file).st_mode
         except:
+            # noinspection PyBroadException
+            try:
+                touch(self.creds_file)
+            except:
+                pass
+        # noinspection PyBroadException
+        try:
+            os.chmod(self.creds_file, mode | stat.S_IWUSR | stat.S_IWRITE)
+            with open(self.creds_file, 'w') as out_file:
+                json.dump(creds_dict, out_file)
+            os.chmod(self.creds_file, mode)
+        except:
             pass
-        os.chmod(self.creds_file, mode | stat.S_IWUSR | stat.S_IWRITE)
-        with open(self.creds_file, 'w') as out_file:
-            json.dump(creds_dict, out_file)
-        os.chmod(self.creds_file, mode)
