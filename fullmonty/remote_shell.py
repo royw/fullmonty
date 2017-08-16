@@ -189,7 +189,7 @@ class RemoteShell(AShell):
         self._report(output, out_stream=out_stream, verbose=verbose)
         return ''.join(output).split("\n")
 
-    # noinspection PyUnusedLocal
+    # noinspection PyUnusedLocal,PyShadowingNames
     def run(self, cmd_args, out_stream=sys.stdout, env=None, verbose=True,
             prefix=None, postfix=None, accept_defaults=False, pattern_response=None, timeout=120,
             timeout_interval=.001, debug=False):
@@ -331,6 +331,7 @@ class RemoteShell(AShell):
     def getPasswordFromCredsFile(self, host, user):
         # noinspection PyArgumentEqualDefault
         try:
+            # noinspection PyArgumentEqualDefault
             with open(self.creds_file, 'r') as creds_file:
                 creds_dict = json.loads(creds_file.read())
                 if host in creds_dict:
@@ -367,7 +368,12 @@ class RemoteShell(AShell):
             creds_dict[host] = {}
         creds_dict[host]['user'] = user
         creds_dict[host]['password'] = password
-        mode = os.stat(self.creds_file).st_mode
+        mode = stat.S_IWUSR | stat.S_IRUSR
+        # noinspection PyBroadException
+        try:
+            mode = os.stat(self.creds_file).st_mode
+        except:
+            pass
         os.chmod(self.creds_file, mode | stat.S_IWUSR | stat.S_IWRITE)
         with open(self.creds_file, 'w') as out_file:
             json.dump(creds_dict, out_file)
