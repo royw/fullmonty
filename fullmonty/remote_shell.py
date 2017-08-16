@@ -26,6 +26,8 @@ import pexpect
 import paramiko
 from paramiko import SSHClient
 
+from fullmonty.simple_logger import debug
+
 try:
     from pexpect.pxssh import pxssh
 except ImportError:
@@ -328,12 +330,16 @@ class RemoteShell(AShell):
 
     def getPasswordFromCredsFile(self, host, user):
         # noinspection PyArgumentEqualDefault
-        with open(self.creds_file, 'r') as creds_file:
-            creds_dict = json.loads(creds_file.read())
-            if host in creds_dict:
-                if 'user' in creds_dict[host]:
-                    if creds_dict[host]['user'] == user:
-                        return creds_dict[host]['password']
+        try:
+            with open(self.creds_file, 'r') as creds_file:
+                creds_dict = json.loads(creds_file.read())
+                if host in creds_dict:
+                    if 'user' in creds_dict[host]:
+                        if creds_dict[host]['user'] == user:
+                            return creds_dict[host]['password']
+        except Exception as ex:
+            debug(str(ex))
+        return None
 
     def getUser(self, host):
         user = self.getUserFromCredsFile(host)
