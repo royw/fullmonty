@@ -363,6 +363,8 @@ class RemoteShell(AShell):
                 creds_dict = json.loads(creds_file.read())
         except:
             pass
+        if host not in creds_dict.keys():
+            creds_dict[host] = {}
         creds_dict[host]['user'] = user
         creds_dict[host]['password'] = password
         mode = os.stat(self.creds_file).st_mode
