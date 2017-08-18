@@ -28,6 +28,8 @@ try:
         :return: unique list
         :rtype: list
         """
+        if src_list is None:
+            src_list = []
         return list(OrderedDict.fromkeys(src_list).keys())
 
 except ImportError:
@@ -44,6 +46,8 @@ def compress_list(src_list):
     :return: compressed list
     :rtype: list
     """
+    if src_list is None:
+        return []
     return [item for item in src_list if item]
 
 
@@ -61,16 +65,31 @@ def is_sequence(item):
 
 
 # noinspection PyShadowingBuiltins
-def flatten(l):
+def flatten(src_list):
+    """
+    Flatten a list containing lists.
+
+    Example::
+
+        assert flatten([1, 2, [3, 4, [5]]]) == [1, 2, 3, 4, 5]
+
+    :param src_list: the list that can contain embedded list(s)
+    :type src_list: list
+    :return: flattended list
+    :rtype: list
+    """
     try:
         # noinspection PyUnboundLocalVariable
         basestring = basestring
     except NameError:
         basestring = (str, unicode)
 
-    for el in l:
-        if isinstance(el, collections.Iterable) and not isinstance(el, basestring):
-            for sub in flatten(el):
+    if src_list is None:
+        src_list = []
+
+    for item in src_list:
+        if isinstance(item, collections.Iterable) and not isinstance(item, basestring):
+            for sub in flatten(item):
                 yield sub
         else:
-            yield el
+            yield item
