@@ -153,3 +153,21 @@ class TestMash(unittest.TestCase):
         # mash(data) vs namespace
         self.assertDictEqual(Mash(data), namespace.__dict__)
         self.assertDictEqual(namespace.__dict__, Mash(data))
+
+    def test_vars(self):
+        a = Mash()
+        # a[1] = 'foo'
+        a['a*b'] = 'bar'
+        a['c.d'] = 'fig'
+        b = Namespace(**a)
+
+        assert getattr(a, 'a*b', None)
+        assert getattr(b, 'a*b', None)
+        assert getattr(a, 'c.d', None)
+        assert getattr(b, 'c.d', None)
+
+        assert b
+        # assert b[1] == 'foo'
+        assert vars(b)['a*b'] == 'bar'
+        assert vars(b)['c.d'] == 'fig'
+        # assert vars(b) == a
