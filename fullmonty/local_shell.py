@@ -19,9 +19,27 @@ import signal
 import os
 import fcntl
 import sys
-import subprocess
 import pexpect
 from time import sleep
+
+try:
+    # use subprocess32 as it is the backport of the Python3.2 rewrite of subprocess
+
+    # from:  https://stackoverflow.com/questions/21194380/is-subprocess-popen-not-thread-safe
+    #
+    # A substantial revision to subprocess was made in Python 3.2 which addresses various race conditions
+    # (amongst other things, the fork & exec code is in a C module, rather than doing some reasonably
+    # involved Python code in the critical part between fork and exec), and is available backported to
+    # recent Python 2.x releases in the subprocess32 module. Note the following from the PyPI page:
+    # "On POSIX systems it is guaranteed to be reliable when used in threaded applications."
+
+    # noinspection PyPackageRequirements,PyUnresolvedReferences
+    import subprocess32
+
+    # HACK
+    subprocess = subprocess32
+except ImportError:
+    import subprocess
 
 try:
     # noinspection PyUnresolvedReferences
@@ -108,7 +126,8 @@ class LocalShell(AShell):
 
     def run(self, cmd_args, out_stream=sys.stdout, env=None, verbose=False,
             prefix=None, postfix=None, accept_defaults=False, pattern_response=None,
-            timeout=0, timeout_interval=1, debug=False, raise_on_interrupt=False):
+            timeout=0, timeout_interval=1, debug=False, raise_on_interrupt=False,
+            use_signals=True):
         """
         Runs the command and returns the output, writing each the output to out_stream if verbose is True.
 
@@ -137,6 +156,8 @@ class LocalShell(AShell):
         :type debug: bool
         :param raise_on_interrupt: on keyboard interrupt, raise the KeyboardInterrupt exception
         :type raise_on_interrupt: bool
+        :param use_signals: Use signals to handle ^C outside of process.  Warning, if threaded then set to False.
+        :type use_signals: bool
 
         :returns: the output of the command
         :rtype: str
@@ -156,13 +177,14 @@ class LocalShell(AShell):
         for line in self.run_generator(cmd_args, out_stream=out_stream, env=env, verbose=verbose,
                                        prefix=prefix, postfix=postfix,
                                        timeout=timeout, timeout_interval=timeout_interval,
-                                       debug=debug, raise_on_interrupt=raise_on_interrupt):
+                                       debug=debug, raise_on_interrupt=raise_on_interrupt,
+                                       use_signals=use_signals):
             lines.append(line)
         return ''.join(lines)
 
     def run_generator(self, cmd_args, out_stream=sys.stdout, env=None, verbose=True,
                       prefix=None, postfix=None, timeout=0, timeout_interval=1, debug=False,
-                      raise_on_interrupt=False):
+                      raise_on_interrupt=False, use_signals=True):
         """
         Runs the command and yields on each line of output, writing each the output to out_stream if verbose is True.
 
@@ -184,6 +206,8 @@ class LocalShell(AShell):
         :type debug: bool
         :param raise_on_interrupt: on keyboard interrupt, raise the KeyboardInterrupt exception
         :type raise_on_interrupt: bool
+        :param use_signals: Use signals to handle ^C outside of process.  Warning, if threaded then set to False.
+        :type use_signals: bool
         """
         self.display("run_generator(%s, %s)\n\n" % (cmd_args, env), out_stream=out_stream, verbose=debug)
         args = self.expand_args(cmd_args, prefix=prefix, postfix=postfix)
@@ -193,12 +217,14 @@ class LocalShell(AShell):
 
         for line in self.run_process(args, env=env, out_stream=out_stream, verbose=debug,
                                      timeout=timeout, timeout_interval=timeout_interval,
-                                     raise_on_interrupt=raise_on_interrupt):
+                                     raise_on_interrupt=raise_on_interrupt,
+                                     use_signals=use_signals):
             self.display(line, out_stream=out_stream, verbose=verbose)
             yield line
 
     def run_process(self, cmd_args, env=None, out_stream=sys.stdout, verbose=True,
-                    timeout=0, timeout_interval=1, raise_on_interrupt=False):
+                    timeout=0, timeout_interval=1, raise_on_interrupt=False,
+                    use_signals=True):
         """
         Run the process yield for each output line from the process.
 
@@ -215,6 +241,8 @@ class LocalShell(AShell):
         :type timeout_interval: int
         :param raise_on_interrupt: on keyboard interrupt, raise the KeyboardInterrupt exception
         :type raise_on_interrupt: bool
+        :param use_signals: Use signals to handle ^C outside of process.  Warning, if threaded then set to False.
+        :type use_signals: bool
         """
         self.display("run_process(%s, %s)\n\n" % (cmd_args, env), out_stream=out_stream, verbose=verbose)
         sub_env = os.environ.copy()
@@ -223,16 +251,22 @@ class LocalShell(AShell):
                 sub_env[key] = value
 
         timeout_seconds = timeout
-        with GracefulInterruptHandler() as handler:
+        interrupt_handler = None
+        try:
+            if use_signals:
+                interrupt_handler = GracefulInterruptHandler()
+                interrupt_handler.capture()
+
             def preexec_function():
                 """Ignore the SIGINT signal by setting the handler to the standard signal handler SIG_IGN."""
-                signal.signal(signal.SIGINT, signal.SIG_IGN)
+                if use_signals:
+                    signal.signal(signal.SIGINT, signal.SIG_IGN)
 
             process = subprocess.Popen(cmd_args,
                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                        env=sub_env, preexec_fn=preexec_function)
             while process.poll() is None:  # returns None while subprocess is running
-                if handler.interrupted:
+                if interrupt_handler is not None and interrupt_handler.interrupted:
                     process.kill()
                 while True:
                     line = self._non_block_read(process.stdout)
@@ -249,8 +283,12 @@ class LocalShell(AShell):
             line = self._non_block_read(process.stdout)
             if line:
                 yield line
-            if handler.interrupted and raise_on_interrupt:
+            if interrupt_handler is not None and interrupt_handler.interrupted and raise_on_interrupt:
                 raise KeyboardInterrupt()
+
+        finally:
+            if interrupt_handler is not None:
+                interrupt_handler.release()
 
     # noinspection PyMethodMayBeStatic
     def _non_block_read(self, output):
