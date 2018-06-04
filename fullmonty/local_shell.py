@@ -162,6 +162,13 @@ class LocalShell(AShell):
         :returns: the output of the command
         :rtype: str
         """
+        try:
+            # noinspection PyUnboundLocalVariable,PyShadowingBuiltins
+            basestring = basestring
+        except NameError:
+            # noinspection PyShadowingBuiltins
+            basestring = (str, unicode)
+
         if isinstance(cmd_args, basestring):
             cmd_args = pexpect.split_command_line(cmd_args)
 
