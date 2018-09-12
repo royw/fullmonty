@@ -74,9 +74,9 @@ def flatten(src_list):
         assert flatten([1, 2, [3, 4, [5]]]) == [1, 2, 3, 4, 5]
 
     :param src_list: the list that can contain embedded list(s)
-    :type src_list: list
+    :type src_list: iterable
     :return: flattended list
-    :rtype: list
+    :rtype: iterable
     """
     try:
         # noinspection PyUnboundLocalVariable
