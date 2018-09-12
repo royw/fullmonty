@@ -74,3 +74,4 @@ fullmonty/fullmonty_main.py
 fullmonty/fullmonty_settings.py
 
 quality/
+/.pytest_cache
