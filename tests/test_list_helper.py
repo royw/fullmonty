@@ -54,6 +54,20 @@ def test_unique_list():
     assert unique_list([2, 1, 1]) == [2, 1]
 
 
+def test_unique_str_list():
+    """removes duplicate entries in the list"""
+
+    assert unique_list([""]) == [""]
+    assert unique_list(["1"]) == ["1"]
+    assert unique_list(["1", "2"]) == ["1", "2"]
+
+    assert unique_list(["1", "1"]) == ["1"]
+    assert unique_list(["1", "1", "1"]) == ["1"]
+    assert unique_list(["1", "1", "2"]) == ["1", "2"]
+    assert unique_list(["1", "2", "1"]) == ["1", "2"]
+    assert unique_list(["2", "1", "1"]) == ["2", "1"]
+
+
 def test_is_sequence():
     """does the given object behave like a list but is not a string?"""
 
