@@ -8,6 +8,11 @@ Add the following to your *requirements.txt* file:
 
 """
 import collections
+import sys
+
+if sys.version_info[0] >= 3:
+    # noinspection PyShadowingBuiltins
+    unicode = str
 
 __docformat__ = 'restructuredtext en'
 

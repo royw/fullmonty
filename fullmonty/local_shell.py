@@ -22,6 +22,10 @@ import sys
 import pexpect
 from time import sleep
 
+if sys.version_info[0] >= 3:
+    # noinspection PyShadowingBuiltins
+    unicode = str
+
 try:
     # use subprocess32 as it is the backport of the Python3.2 rewrite of subprocess
 
